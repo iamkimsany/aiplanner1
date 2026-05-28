@@ -1,34 +1,52 @@
-export type Difficulty = 'easy' | 'middle' | 'hard';
-
+export type Difficulty = 'easy' | 'medium' | 'hard';
 export type EnergyLevel = 'low' | 'medium' | 'high';
+export type SessionResult = 'done' | 'simplified' | 'skipped';
 
-export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0=Sun
-
-export interface FixedTask {
+export interface Task {
   id: string;
-  name: string;
-  startTime: string; // "HH:MM"
-  endTime: string;
-  days: DayOfWeek[];
+  goalId: string;
+  text: string;
+  difficulty: Difficulty;
+  simplifiedFrom?: string;
+  isDone: boolean;
+  order: number;
 }
 
-export interface GoalTask {
+export interface Goal {
   id: string;
-  name: string;
-  difficulty: Difficulty;
-  energyLevel: EnergyLevel;
-  estimatedMinutes: number;
+  title: string;
+  tasksEasy: Task[];
+  tasksMedium: Task[];
+  tasksHard: Task[];
+  progress: number;
+  total: number;
+  isActive: boolean;
   createdAt: string;
 }
 
-export interface DailyRecord {
-  date: string; // "YYYY-MM-DD"
-  completedFixedTaskIds: string[];
-  completedGoalTaskIds: string[];
+export interface ScheduleBlock {
+  id: string;
+  title: string;
+  days: number[]; // 0=Sun … 6=Sat
+  startTime: string; // "08:00"
+  endTime: string;   // "13:00"
 }
 
-export interface AppData {
-  fixedTasks: FixedTask[];
-  goalTasks: GoalTask[];
-  dailyRecords: Record<string, DailyRecord>;
+export interface Session {
+  id: string;
+  goalId: string;
+  taskId: string;
+  energy: EnergyLevel;
+  result: SessionResult;
+  createdAt: string;
+}
+
+export interface AppState {
+  goal: Goal | null;
+  schedule: ScheduleBlock[];
+  sessions: Session[];
+  currentEnergy: EnergyLevel | null;
+  currentTaskId: string | null;
+  lastResult: SessionResult | null;
+  simplifiedText: string | null;
 }

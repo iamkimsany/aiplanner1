@@ -1,10 +1,45 @@
 @import "tailwindcss";
 
 :root {
+  --color-bg: #FFFFFF;
+  --color-bg-secondary: #F5F5F3;
+  --color-text: #1A1A1A;
+  --color-text-secondary: #6B6B6B;
+  --color-text-tertiary: #A0A0A0;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-medium: rgba(0, 0, 0, 0.15);
+  --color-success: #1a7a4a;
+  --color-success-bg: #EAF3DE;
+  --color-study: #3B6D11;
+  --color-study-bg: #EAF3DE;
+  --color-health: #0F6E56;
+  --color-health-bg: #E1F5EE;
+  --color-hobby: #3C3489;
+  --color-hobby-bg: #EEEDFE;
+  --color-rest: #993C1D;
+  --color-rest-bg: #FAECE7;
   color-scheme: light;
 }
 
-html, body {
-  background-color: #f9fafb;
-  color: #111827;
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.screen {
+  animation: fadeIn 0.25s ease;
+}
+
+.progress-fill {
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button:active {
+  transform: scale(0.98);
 }

@@ -1,25 +1,23 @@
-import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import "./globals.css";
-import Navbar from "@/components/Navbar";
+import type { Metadata } from 'next';
+import { Geist } from 'next/font/google';
+import './globals.css';
 
-const geist = Geist({ subsets: ["latin"] });
+const geist = Geist({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "AI 플래너",
-  description: "에너지 수준에 맞는 하루 계획",
+  title: 'Just Start',
+  description: 'A smart planner that adapts to your energy level.',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko" className={`${geist.className} antialiased`}>
-      <body className="bg-gray-50 min-h-screen">
-        <Navbar />
-        <main className="max-w-2xl mx-auto px-4 py-6">{children}</main>
+    <html lang="en" className={geist.className}>
+      <body style={{ backgroundColor: 'var(--color-bg)' }}>
+        <main className="min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
+          <div className="max-w-[390px] mx-auto min-h-screen px-5 pt-12 pb-10 flex flex-col">
+            {children}
+          </div>
+        </main>
       </body>
     </html>
   );

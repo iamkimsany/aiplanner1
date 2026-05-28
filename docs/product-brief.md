@@ -1,47 +1,33 @@
-# Product Brief
+# Product Brief — Just Start
 
-## 1. Product Summary
+## One Line
+A smart planner that adapts to your energy level and protects time for what actually matters.
 
-이 서비스는 대학생들의 미루는 습관을 날마다 해야 할 일 목록을 3가지 난이도로 나눠서 사용자의 에너지 수준에 맞아 해결하도록 돕는다.
+## The Problem
+People don't suffer from a lack of goals — they suffer from the gap between "I want to do this" and "I actually started." The day passes through school, workouts, and scrolling social media, and you go to bed feeling like nothing important got done.
 
-## 2. Problem
+Existing planners (Notion, Todoist, Google Calendar) assume you already know what to do and when. They don't account for:
+- The user's real schedule (school, sleep, workouts)
+- Current energy level
+- The psychological barrier of "I can't get started"
 
-사용자가 현재 겪는 문제는 우선순위를 분리하지 못해 미루는 습관을 가지고 있습니다. Life balance도 안되고 삶의 방향이 명확하지 않습니다. 너무 overwhelming 느낌을 가지고 작은 작은 목표라도 달성하도록 도와주는 것이 필요한다.
+## The Solution
+Just Start knows your schedule, sees your free time windows, and asks one thing: **how much energy do you have right now?** Based on the answer, it gives you one specific task — not a list, not a plan, just one action.
 
-## 3. Target User
+If you couldn't do it — it simplifies. If you did it — it praises you and shows your progress.
 
-- 주요 사용자: 대학생, 여러 직업을 가지고 있는 분들
-- 사용 상황: 목표 기록, 이미 있는 습관을 바탕으로 자동적으로 시간 찾아서 건강 및 수면을 치키면서 꼭 달성할 수 있게 해주는 도움 필요할 때
-- 사용자의 기술 수준: 입력만
-- 사용자가 기대하는 결과: 동기부여, 삶의 방향성
+## Key Differentiators
 
-## 4. Core Value
+| | Todoist | Google Calendar | Just Start |
+|---|---|---|---|
+| Respects your schedule | partially | yes | yes |
+| Adapts to energy level | no | no | **yes** |
+| Simplifies task if low energy | no | no | **yes** |
+| Life balance tracking | no | no | **yes** |
+| Emotional support | no | no | **yes** |
 
-사용자가 이 서비스를 통해 얻는 가장 중요한 가치는 동기부여 및 삶의 방향성.
+## Target Audience (v1)
+Students aged 17–23 with chaotic schedules and goals they keep putting off.
 
-## 5. MVP Scope
-
-이번 MVP에 포함할 것:
-
-* 입력: 1) 맨날 고정된 시간에 하는 일들, 2) 추가적으로 하고 싶은데 하지 못하게 된 일 기록
-* 일의 난이도 3가지: easy, middle, hard
-* 달력
-* progress bar
-
-## 6. Non-goals
-
-이번 MVP에서 제외할 것:
-
-- 로그인
-- 결제
-- 실시간 협업
-- 대용량 파일 업로드
-- 다중 외부 API 연동
-- 복잡한 관리자 권한
-
-## 7. Success Criteria
-
-- 사용자는 핵심 기능을 1분 안에 사용할 수 있다.
-- 3회차 종료 시 브라우저에서 기본 흐름을 확인할 수 있다.
-- 4회차에서 핵심 흐름을 Playwright 테스트로 검증할 수 있다.
-- 최종 결과물은 배포 가능한 형태여야 한다.
+## MVP Success Metric
+> The user completes at least 1 task per day for 3 days in a row.

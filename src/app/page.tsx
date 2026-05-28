@@ -1,127 +1,345 @@
-import Link from 'next/link';
+'use client';
 
-const PROBLEMS = [
-  {
-    icon: '😵',
-    title: '압도감',
-    desc: '할 일이 너무 많아서 어디서부터 시작해야 할지 모르는 느낌',
-  },
-  {
-    icon: '🧭',
-    title: '방향 부재',
-    desc: '매일 바쁜데 정작 중요한 목표에 가까워지지 않는 느낌',
-  },
-  {
-    icon: '⏳',
-    title: '미루는 습관',
-    desc: '중요한 일일수록 시작하기 어렵고 계속 뒤로 밀리는 패턴',
-  },
-];
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import NavigationDots from '@/components/NavigationDots';
+import {
+  loadState,
+  saveState,
+  DEFAULT_SCHEDULE,
+  getFreeWindows,
+  genId,
+} from '@/lib/store';
+import { ScheduleBlock, Goal, Task } from '@/lib/types';
 
-const FEATURES = [
-  {
-    icon: '🟢',
-    title: '쉬운 일부터',
-    desc: '에너지가 낮은 날도 할 수 있는 작은 목표로 시작',
-  },
-  {
-    icon: '🎯',
-    title: '난이도 분류',
-    desc: '쉬움 / 보통 / 어려움 세 단계로 오늘 할 일 정리',
-  },
-  {
-    icon: '📊',
-    title: '진행률 추적',
-    desc: 'Progress bar로 하루 성취를 눈으로 확인',
-  },
-  {
-    icon: '📅',
-    title: '달력 시각화',
-    desc: '한 달 단위로 루틴과 목표 달성 현황 확인',
-  },
-];
+const DAY_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export default function LandingPage() {
+function schedulePillLabel(block: ScheduleBlock): string {
+  const allDays = [0, 1, 2, 3, 4, 5, 6];
+  const weekdays = [1, 2, 3, 4, 5];
+  const sorted = [...block.days].sort((a, b) => a - b);
+  const isAllDays = allDays.every((d) => sorted.includes(d));
+  const isWeekdays = weekdays.every((d) => sorted.includes(d)) && sorted.length === 5;
+
+  const daysLabel = isAllDays
+    ? 'Daily'
+    : isWeekdays
+    ? 'Weekdays'
+    : sorted.map((d) => DAY_LABELS[d].slice(0, 3)).join('/');
+
+  return `${block.title} ${block.startTime}–${block.endTime} · ${daysLabel}`;
+}
+
+export default function GoalPage() {
+  const router = useRouter();
+  const [goalText, setGoalText] = useState('');
+  const [schedule, setSchedule] = useState<ScheduleBlock[]>(DEFAULT_SCHEDULE);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDays, setNewDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [newStart, setNewStart] = useState('09:00');
+  const [newEnd, setNewEnd] = useState('10:00');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const state = loadState();
+    setSchedule(state.schedule);
+    if (state.goal) setGoalText(state.goal.title);
+  }, []);
+
+  function toggleNewDay(d: number) {
+    setNewDays((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
+    );
+  }
+
+  function addBlock() {
+    if (!newTitle.trim()) return;
+    const block: ScheduleBlock = {
+      id: genId(),
+      title: newTitle.trim(),
+      days: newDays,
+      startTime: newStart,
+      endTime: newEnd,
+    };
+    const next = [...schedule, block];
+    setSchedule(next);
+    saveState({ ...loadState(), schedule: next });
+    setNewTitle('');
+    setNewDays([1, 2, 3, 4, 5]);
+    setNewStart('09:00');
+    setNewEnd('10:00');
+    setShowAddForm(false);
+  }
+
+  function removeBlock(id: string) {
+    const next = schedule.filter((b) => b.id !== id);
+    setSchedule(next);
+    saveState({ ...loadState(), schedule: next });
+  }
+
+  async function handleSubmit() {
+    if (!goalText.trim()) {
+      setError('Please enter a goal.');
+      return;
+    }
+    setError('');
+    setIsLoading(true);
+
+    // Calculate free hours from schedule
+    const windows = getFreeWindows(schedule, new Date());
+    const freeHours = windows.reduce((sum, w) => {
+      const [sh, sm] = w.start.split(':').map(Number);
+      const [eh, em] = w.end.split(':').map(Number);
+      return sum + (eh * 60 + em - (sh * 60 + sm)) / 60;
+    }, 0);
+
+    try {
+      const res = await fetch('/api/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: goalText.trim(), freeHours: Math.round(freeHours) }),
+      });
+      const data = await res.json();
+
+      const goalId = genId();
+
+      const makeTasks = (texts: string[], difficulty: 'easy' | 'medium' | 'hard'): Task[] =>
+        texts.map((text, i) => ({
+          id: genId(),
+          goalId,
+          text,
+          difficulty,
+          isDone: false,
+          order: i,
+        }));
+
+      const goal: Goal = {
+        id: goalId,
+        title: goalText.trim(),
+        tasksEasy: makeTasks(data.easy ?? [], 'easy'),
+        tasksMedium: makeTasks(data.medium ?? [], 'medium'),
+        tasksHard: makeTasks(data.hard ?? [], 'hard'),
+        progress: 0,
+        total: (data.easy?.length ?? 0) + (data.medium?.length ?? 0) + (data.hard?.length ?? 0),
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      const state = loadState();
+      saveState({
+        ...state,
+        goal,
+        schedule,
+        sessions: [],
+        currentEnergy: null,
+        currentTaskId: null,
+        lastResult: null,
+        simplifiedText: null,
+      });
+
+      router.push('/energy');
+    } catch {
+      setError('Something went wrong. Please try again.');
+      setIsLoading(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="screen flex-1 flex flex-col items-center justify-center space-y-3">
+        <p className="text-[22px] font-medium" style={{ color: 'var(--color-text)' }}>
+          Building your plan...
+        </p>
+        <p className="text-[14px]" style={{ color: 'var(--color-text-secondary)' }}>
+          Analyzing your goal and free time
+        </p>
+        <div className="mt-6 flex gap-1.5">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="w-2 h-2 rounded-full"
+              style={{
+                background: 'var(--color-text)',
+                opacity: 0.3,
+                animation: `fadeIn 0.6s ease ${i * 0.2}s infinite alternate`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-20 pb-20">
-      {/* Hero */}
-      <section className="text-center pt-12 pb-4 space-y-6">
-        <div className="inline-block bg-indigo-50 text-indigo-600 text-xs font-semibold px-3 py-1 rounded-full tracking-wide uppercase">
-          에너지 기반 생산성 앱
+    <div className="screen flex-1 flex flex-col">
+      <div className="flex-1 space-y-8">
+        {/* Heading */}
+        <div className="space-y-2">
+          <h1
+            className="font-medium leading-[1.3]"
+            style={{ fontSize: '22px', color: 'var(--color-text)' }}
+          >
+            What do you want to<br />accomplish this week?
+          </h1>
+          <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+            Enter any goal — big or small
+          </p>
         </div>
-        <h1 className="text-4xl font-bold text-gray-900 leading-tight tracking-tight">
-          Overwhelmed?<br />
-          <span className="text-indigo-600">Start with what your<br />energy allows today.</span>
-        </h1>
-        <p className="text-gray-500 text-base leading-relaxed max-w-sm mx-auto">
-          에너지 수준에 맞는 작은 목표부터 시작해<br />
-          미루는 습관을 줄이고 삶의 방향성을 되찾도록 돕는 생산성 앱.
-        </p>
-        <Link
-          href="/app"
-          className="inline-block bg-indigo-600 text-white font-semibold px-8 py-3.5 rounded-full hover:bg-indigo-700 active:scale-95 transition-all shadow-md shadow-indigo-200"
-        >
-          Start Small Today
-        </Link>
-      </section>
 
-      {/* Problem */}
-      <section className="space-y-5">
-        <div className="text-center">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Problem</p>
-          <h2 className="text-xl font-bold text-gray-800">이런 경험 있으신가요?</h2>
+        {/* Goal input */}
+        <div>
+          <input
+            type="text"
+            value={goalText}
+            onChange={(e) => setGoalText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            placeholder="e.g. write my term paper"
+            className="w-full bg-transparent outline-none"
+            style={{
+              fontSize: '17px',
+              fontWeight: 500,
+              color: 'var(--color-text)',
+              borderBottom: '1px solid var(--color-border-medium)',
+              paddingBottom: '10px',
+            }}
+          />
+          {error && (
+            <p className="mt-2 text-[13px]" style={{ color: 'var(--color-rest)' }}>
+              {error}
+            </p>
+          )}
         </div>
+
+        {/* Schedule blocks */}
         <div className="space-y-3">
-          {PROBLEMS.map(({ icon, title, desc }) => (
-            <div
-              key={title}
-              className="bg-white rounded-2xl p-5 border border-gray-200 flex items-start gap-4"
-            >
-              <span className="text-2xl flex-shrink-0">{icon}</span>
-              <div>
-                <p className="font-semibold text-gray-800">{title}</p>
-                <p className="text-sm text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
+          <p
+            style={{
+              fontSize: '11px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.6px',
+              color: 'var(--color-text-tertiary)',
+            }}
+          >
+            Fixed schedule
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            {schedule.map((block) => (
+              <div
+                key={block.id}
+                className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                style={{
+                  background: 'var(--color-bg-secondary)',
+                  border: '0.5px solid var(--color-border)',
+                  fontSize: '13px',
+                  color: 'var(--color-text-secondary)',
+                }}
+              >
+                <span>{schedulePillLabel(block)}</span>
+                <button
+                  onClick={() => removeBlock(block.id)}
+                  className="leading-none"
+                  style={{ color: 'var(--color-text-tertiary)', fontSize: '14px' }}
+                  aria-label={`Remove ${block.title}`}
+                >
+                  ×
+                </button>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
 
-      {/* Core Features */}
-      <section className="space-y-5">
-        <div className="text-center">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">Features</p>
-          <h2 className="text-xl font-bold text-gray-800">핵심 기능</h2>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {FEATURES.map(({ icon, title, desc }) => (
-            <div
-              key={title}
-              className="bg-white rounded-2xl p-4 border border-gray-200 space-y-2"
+            {/* + Add button */}
+            <button
+              onClick={() => setShowAddForm((v) => !v)}
+              className="rounded-full px-3 py-1.5"
+              style={{
+                fontSize: '13px',
+                color: 'var(--color-text-tertiary)',
+                border: '1px dashed var(--color-border-medium)',
+              }}
             >
-              <span className="text-xl">{icon}</span>
-              <p className="font-semibold text-gray-800 text-sm">{title}</p>
-              <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+              + Add
+            </button>
+          </div>
 
-      {/* Bottom CTA */}
-      <section className="bg-indigo-50 rounded-3xl p-8 text-center space-y-4 border border-indigo-100">
-        <p className="text-lg font-semibold text-indigo-900 leading-snug">
-          오늘 모든 걸 끝낼 필요는 없어요.
-        </p>
-        <p className="text-sm text-indigo-500">
-          You do not need to finish everything today.
-        </p>
-        <Link
-          href="/app"
-          className="inline-block bg-indigo-600 text-white font-semibold px-7 py-3 rounded-full hover:bg-indigo-700 active:scale-95 transition-all"
+          {/* Inline add form */}
+          {showAddForm && (
+            <div
+              className="rounded-xl p-4 space-y-3"
+              style={{ border: '1px solid var(--color-border-medium)', background: 'var(--color-bg-secondary)' }}
+            >
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="e.g. School, Gym, Work"
+                className="w-full bg-transparent outline-none"
+                style={{
+                  fontSize: '14px',
+                  color: 'var(--color-text)',
+                  borderBottom: '1px solid var(--color-border)',
+                  paddingBottom: '6px',
+                }}
+              />
+              <div className="flex gap-1.5">
+                {DAY_SHORT.map((d, i) => (
+                  <button
+                    key={i}
+                    onClick={() => toggleNewDay(i)}
+                    className="w-8 h-8 rounded-full text-[12px] font-medium transition-colors"
+                    style={{
+                      background: newDays.includes(i) ? 'var(--color-text)' : 'var(--color-bg)',
+                      color: newDays.includes(i) ? '#fff' : 'var(--color-text-secondary)',
+                      border: '0.5px solid var(--color-border-medium)',
+                    }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="time"
+                  value={newStart}
+                  onChange={(e) => setNewStart(e.target.value)}
+                  className="flex-1 bg-transparent outline-none text-[13px]"
+                  style={{ color: 'var(--color-text)', border: '0.5px solid var(--color-border)', borderRadius: '6px', padding: '4px 8px' }}
+                />
+                <span style={{ color: 'var(--color-text-tertiary)', alignSelf: 'center' }}>–</span>
+                <input
+                  type="time"
+                  value={newEnd}
+                  onChange={(e) => setNewEnd(e.target.value)}
+                  className="flex-1 bg-transparent outline-none text-[13px]"
+                  style={{ color: 'var(--color-text)', border: '0.5px solid var(--color-border)', borderRadius: '6px', padding: '4px 8px' }}
+                />
+              </div>
+              <button
+                onClick={addBlock}
+                className="w-full py-2 rounded-lg text-[13px] font-medium"
+                style={{ background: 'var(--color-text)', color: '#fff' }}
+              >
+                Add
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div className="space-y-6 pt-8">
+        <button
+          onClick={handleSubmit}
+          className="w-full py-[14px] rounded-[10px] text-[15px] font-medium transition-colors"
+          style={{ background: 'var(--color-text)', color: '#fff' }}
         >
-          오늘 할 일 확인하기
-        </Link>
-      </section>
+          AI builds your plan →
+        </button>
+
+        <NavigationDots total={4} current={0} />
+      </div>
     </div>
   );
 }
