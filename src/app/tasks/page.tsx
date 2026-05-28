@@ -244,34 +244,15 @@ export default function TasksPage() {
             Choose a different level →
           </button>
         </div>
-        <NavigationDots total={5} current={2} />
+        <NavigationDots total={4} current={2} />
       </div>
     );
   }
 
-  if (allDone) {
-    const doneCount = items.filter((i) => i.todayTask.status === 'done').length;
-    return (
-      <div className="screen flex-1 flex flex-col">
-        <div className="flex-1 flex flex-col justify-center items-center gap-3 text-center">
-          <p style={{ fontSize: '40px' }}>🎉</p>
-          <h2 style={{ fontSize: '20px', fontWeight: 500, color: 'var(--color-text)' }}>
-            All done for today!
-          </h2>
-          <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-            {doneCount} {doneCount === 1 ? 'task' : 'tasks'} completed. You did great — rest now.
-          </p>
-          <button
-            onClick={() => router.push('/overview')}
-            style={{ padding: '13px 28px', borderRadius: '10px', fontSize: '14px', fontWeight: 500, background: 'var(--color-purple)', color: '#fff', marginTop: '12px' }}
-          >
-            View this week →
-          </button>
-        </div>
-        <NavigationDots total={5} current={2} />
-      </div>
-    );
-  }
+  // Auto-redirect when all tasks are done — no celebration state on this screen
+  useEffect(() => {
+    if (allDone) router.push('/overview');
+  }, [allDone, router]);
 
   // ── Task list ────────────────────────────────────────────────────────────────
 
@@ -334,7 +315,7 @@ export default function TasksPage() {
 
       {/* Navigation */}
       <div className="pt-5">
-        <NavigationDots total={5} current={2} />
+        <NavigationDots total={4} current={2} />
       </div>
     </div>
   );

@@ -439,7 +439,7 @@ export default function GoalPage() {
         >
           AI builds your plan →
         </button>
-        <NavigationDots total={5} current={0} />
+        <NavigationDots total={4} current={0} />
       </div>
     </div>
   );

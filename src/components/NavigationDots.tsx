@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 
-const ROUTES = ['/', '/energy', '/tasks', '/overview', '/end'];
+const ROUTES = ['/', '/energy', '/tasks', '/overview'];
 
 interface NavigationDotsProps {
   total: number;

@@ -127,7 +127,7 @@ export default function EnergyPage() {
         >
           Let&apos;s go →
         </button>
-        <NavigationDots total={5} current={1} />
+        <NavigationDots total={4} current={1} />
       </div>
     </div>
   );

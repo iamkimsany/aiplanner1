@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { loadState, calcStreak } from '@/lib/store';
+import { loadState, calcStreak, getNextUndoneTask } from '@/lib/store';
 
 export default function FocusDonePage() {
   const router = useRouter();
@@ -14,6 +14,7 @@ export default function FocusDonePage() {
   const [streak,       setStreak]       = useState(0);
   const [topicsDone,   setTopicsDone]   = useState(0);
   const [topicsTotal,  setTopicsTotal]  = useState(0);
+  const [tomorrow,     setTomorrow]     = useState('');
 
   useEffect(() => {
     const state = loadState();
@@ -38,6 +39,16 @@ export default function FocusDonePage() {
     const total = state.goals.reduce((acc, g) => acc + g.total, 0);
     setTopicsDone(done);
     setTopicsTotal(total);
+
+    // Tomorrow preview — next undone task at current energy
+    const energy   = state.currentEnergy ?? 'medium';
+    const nextGoal = state.goals.find((g) => getNextUndoneTask(energy, g) !== null);
+    const nextTask = nextGoal ? getNextUndoneTask(energy, nextGoal) : null;
+    if (nextTask && nextGoal) {
+      setTomorrow(
+        `Tomorrow: ${nextGoal.title} — "${nextTask.text}". Schedule it while your energy is still high.`
+      );
+    }
   }, [router]);
 
   return (
@@ -107,6 +118,26 @@ export default function FocusDonePage() {
                 }}
               />
             </div>
+          </div>
+        )}
+        {/* AI says — tomorrow preview */}
+        {tomorrow && (
+          <div
+            style={{
+              borderLeft:   '2px solid var(--color-purple)',
+              borderRadius: '0 10px 10px 0',
+              background:   'var(--color-purple-light)',
+              padding:      '10px 12px',
+              width:        '100%',
+              textAlign:    'left',
+            }}
+          >
+            <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-purple)', marginBottom: '4px' }}>
+              AI says
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--color-purple-dark)', lineHeight: 1.6 }}>
+              &ldquo;{tomorrow}&rdquo;
+            </p>
           </div>
         )}
       </div>

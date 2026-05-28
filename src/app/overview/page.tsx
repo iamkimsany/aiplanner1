@@ -247,13 +247,13 @@ export default function OverviewPage() {
       {/* CTA */}
       <div className="space-y-5 pt-6">
         <button
-          onClick={() => router.push('/end')}
+          onClick={() => router.push('/')}
           className="w-full rounded-[10px] font-medium"
           style={{ padding: '13px', fontSize: '14px', background: 'var(--color-purple)', color: '#fff' }}
         >
-          End of day →
+          Start again →
         </button>
-        <NavigationDots total={5} current={3} />
+        <NavigationDots total={4} current={3} />
       </div>
     </div>
   );
