@@ -1,13 +1,15 @@
-export type Difficulty = 'easy' | 'medium' | 'hard';
-export type EnergyLevel = 'low' | 'medium' | 'high';
+export type Difficulty   = 'easy' | 'medium' | 'hard';
+export type EnergyLevel  = 'low'  | 'medium' | 'high';
 export type SessionResult = 'done' | 'simplified' | 'skipped';
+export type GoalType     = 'deadline' | 'habit';
 
 export interface Task {
   id: string;
   goalId: string;
   text: string;
   difficulty: Difficulty;
-  simplifiedFrom?: string;
+  /** Up to 2 pre-generated fallback simplifications (level 1, level 2). */
+  simplifiedVersions: string[];
   isDone: boolean;
   order: number;
 }
@@ -15,9 +17,12 @@ export interface Task {
 export interface Goal {
   id: string;
   title: string;
-  tasksEasy: Task[];
+  type: GoalType;
+  deadline?: string;    // ISO date "2026-06-15"
+  materialUrl?: string;
+  tasksEasy:   Task[];
   tasksMedium: Task[];
-  tasksHard: Task[];
+  tasksHard:   Task[];
   progress: number;
   total: number;
   isActive: boolean;
@@ -27,7 +32,7 @@ export interface Goal {
 export interface ScheduleBlock {
   id: string;
   title: string;
-  days: number[]; // 0=Sun … 6=Sat
+  days: number[];    // 0=Sun … 6=Sat
   startTime: string; // "08:00"
   endTime: string;   // "13:00"
 }
@@ -41,13 +46,47 @@ export interface Session {
   createdAt: string;
 }
 
+export interface FocusSession {
+  id: string;
+  taskId: string;
+  goalId: string;
+  startedAt: string;
+  durationMinutes: number;
+  distractions: number;
+  completed: boolean;
+}
+
+/** One slot in today's task list — one per goal */
+export interface TodayTask {
+  goalId: string;
+  taskId: string;
+  status: 'active' | 'done' | 'upcoming';
+  /** 0 = original, 1 = simplified once, 2 = simplified twice */
+  simplifyLevel: number;
+}
+
 export interface AppState {
   goals: Goal[];
   schedule: ScheduleBlock[];
   sessions: Session[];
+  focusSessions: FocusSession[];
+  todayTasks: TodayTask[];
   currentEnergy: EnergyLevel | null;
-  currentGoalId: string | null;
-  currentTaskId: string | null;
   lastResult: SessionResult | null;
-  simplifiedText: string | null;
+  aiSummary: string | null;
+  /** Active focus-flow context (persisted so timer survives re-render) */
+  activeFocus: {
+    taskId: string;
+    goalId: string;
+    startedAt: string;
+    durationMinutes: number;
+    distractions: number;
+  } | null;
+  /** Summary of the last completed focus session, read by the Well-Done screen */
+  lastFocusDone: {
+    durationMinutes: number;
+    distractions: number;
+    taskText: string;
+    goalTitle: string;
+  } | null;
 }

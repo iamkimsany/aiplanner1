@@ -1,78 +1,99 @@
 # Delivery Plan — Just Start MVP
 
 ## Goal
-A live app with 10 real users in 6 weeks.
+A live app with 10 real users completing tasks for 3 days in a row — in 6 weeks.
+
+---
+
+## App Structure (final)
+```
+Screen 1: Goals & Schedule
+Screen 2: AI Plan (energy selection)
+Screen 3: Today's Tasks
+  → Focus Flow: Block → Timer → "Well done!"
+Screen 4: Week Overview (Balance + Calendar)
+Screen 5: End of Day
+```
 
 ---
 
 ## Week 1 — Validate without code
-**Goal:** confirm the idea works before writing a single line of code.
+**Goal:** confirm the core loop works before writing anything.
 
-- [ ] Run 10 short interviews (3 questions about procrastination)
-- [ ] Launch a Wizard of Oz test via Telegram (3 people, 3 days)
-- [ ] Manually play the role of the app: ask about energy in the morning → send a task → log the result in the evening
-- [ ] Success criterion: 5+ out of 10 people complete at least 1 task
+- [ ] Interview 10 people: "Does your day end with a feeling of nothing important done?"
+- [ ] Run Wizard of Oz test via Telegram (3 people, 3 days):
+  - Morning: ask energy level → manually send matching task
+  - Evening: ask if done → if not, send simplified version
+- [ ] Success criterion: 5+ of 10 people complete at least 1 task
 
-**Decision:** if criterion is met — build. If not — iterate on the idea.
+**Decision gate:** pass → build. Fail → iterate the idea first.
 
 ---
 
 ## Week 2 — Foundation
-- [ ] Initialize Next.js project + Tailwind + TypeScript
-- [ ] Connect Supabase, create tables (users, goals, tasks, sessions)
-- [ ] Basic routing: `/onboarding` → `/energy` → `/task` → `/progress`
-- [ ] Integrate Anthropic API — task generation from prompt
+- [ ] Init Next.js 14 + TypeScript + Tailwind
+- [ ] Supabase setup: tables for users, goals, tasks, sessions, habit_logs, focus_sessions
+- [ ] Routing: `/onboarding` → `/energy` → `/tasks` → `/overview` → `/end`
+- [ ] Anthropic API integration: Prompt 1 (goal → tasks JSON)
+- [ ] Midnight cron job: habit reset via Vercel cron
 
 ---
 
 ## Week 3 — Core screens
-- [ ] Screen 1: goal input + schedule block tags
-- [ ] Screen 2: energy selection (three cards)
-- [ ] Screen 3: task display with free time window
-- [ ] Logic: `get_task(energy, goal)` + `simplify(task)`
+- [ ] Screen 1: goal input, type selection (deadline/habit), schedule tags
+- [ ] Screen 2: AI summary card + 3 energy cards
+- [ ] Screen 3: task list with done/active/upcoming states
+- [ ] `Simplify` button: inline text swap (2 levels)
+- [ ] Progress bar + done counter
 
 ---
 
-## Week 4 — Progress & reaction
-- [ ] Screen 4: progress bar + life balance wheel
-- [ ] Completion animation
-- [ ] Life balance calculation algorithm
-- [ ] Basic push notifications (OneSignal)
+## Week 4 — Focus Flow + AI material reading
+- [ ] Focus Block screen: blocked apps list
+- [ ] Timer screen: circular SVG ring, elapsed time, distraction counter
+- [ ] "Well done!" screen: stats + deadline progress
+- [ ] Prompt 2: deadline goal with URL → AI reads material with web_search tool
+- [ ] Screen 2 updated: shows material summary + deadline-based options
 
 ---
 
-## Week 5 — Polish & test
-- [ ] Full flow walkthrough with 5 test users
-- [ ] Fix UX issues found
+## Week 5 — Overview + notifications + polish
+- [ ] Screen 4: balance grid (2×2) + calendar grid + AI tip (Prompt 3)
+- [ ] Screen 5: end of day + AI tomorrow preview
+- [ ] Push notifications via OneSignal (morning + evening)
 - [ ] Dark mode support
-- [ ] Offline mode (cache last task)
+- [ ] Offline mode: cache last task set
+- [ ] Full flow test with 5 users, fix issues
 
 ---
 
 ## Week 6 — Launch
-- [ ] Deploy to Vercel (production)
+- [ ] Production deploy on Vercel
 - [ ] Invite first 10 users
-- [ ] Set up basic analytics (task completion rate)
-- [ ] Collect feedback via a simple form
+- [ ] Basic analytics: task completion rate, focus session count, streak length
+- [ ] Simple feedback form (1 question: "What would make this better?")
 
 ---
 
-## Post-launch metrics
+## Post-Launch Metrics
 
-| Metric | MVP target |
-|--------|-----------|
+| Metric | Target |
+|--------|--------|
 | Day 1 retention | > 60% |
 | Day 3 retention | > 40% |
-| Tasks completed / tasks shown | > 50% |
-| NPS (1–10, "would you recommend?") | > 7 |
+| Tasks completed / shown | > 50% |
+| Focus sessions per active user per week | > 3 |
+| NPS ("would you recommend?") | > 7/10 |
 
 ---
 
-## Risk response plan
+## Risk Register
 
-| Risk | Response |
-|------|----------|
-| AI responds slowly | Show "building your plan..." skeleton + animation |
-| User drops off during onboarding | Reduce to 1 input field + 1 button |
-| Tasks feel irrelevant | Add "not right" button → re-call AI |
-| Notifications feel annoying | Default to 1 per day only (morning) |
+| Risk | Likelihood | Response |
+|------|-----------|----------|
+| AI slow on material reading | Medium | Show animated loading state, cache result after first read |
+| User drops off at onboarding | High | Reduce to 1 goal + 1 schedule block minimum, rest is optional |
+| App blocking rejected by Apple | High | Launch without blocking first, add after entitlement approved |
+| Habits feel like tasks | Medium | Visual distinction: habit cards use dashed left border + auto-reset label |
+| Notifications feel annoying | Medium | Default: 1 per day (morning only), user opts into more |
+| AI tip feels generic | Low | Prompt includes actual percentages so output is always specific |
