@@ -9,10 +9,11 @@ export const DEFAULT_SCHEDULE: ScheduleBlock[] = [
 ];
 
 const defaultState: AppState = {
-  goal: null,
+  goals: [],
   schedule: DEFAULT_SCHEDULE,
   sessions: [],
   currentEnergy: null,
+  currentGoalId: null,
   currentTaskId: null,
   lastResult: null,
   simplifiedText: null,
@@ -23,7 +24,13 @@ export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaultState;
-    return { ...defaultState, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    // Migration: old format had `goal: Goal | null`
+    if ('goal' in parsed && !('goals' in parsed)) {
+      parsed.goals = parsed.goal ? [parsed.goal] : [];
+      delete parsed.goal;
+    }
+    return { ...defaultState, ...parsed };
   } catch {
     return defaultState;
   }
@@ -34,12 +41,40 @@ export function saveState(state: AppState): void {
   localStorage.setItem(KEY, JSON.stringify(state));
 }
 
-export function getTask(energy: EnergyLevel, goal: Goal): Task | null {
-  const pool =
-    energy === 'low'    ? goal.tasksEasy :
-    energy === 'medium' ? goal.tasksMedium :
-                          goal.tasksHard;
-  return pool.find((t) => !t.isDone) ?? null;
+/** Get the next undone task across all goals for a given energy level. */
+export function getNextTask(
+  energy: EnergyLevel,
+  goals: Goal[]
+): { task: Task; goal: Goal } | null {
+  for (const goal of goals) {
+    const pool =
+      energy === 'low'    ? goal.tasksEasy :
+      energy === 'medium' ? goal.tasksMedium :
+                            goal.tasksHard;
+    const task = pool.find((t) => !t.isDone);
+    if (task) return { task, goal };
+  }
+  return null;
+}
+
+/** Mark a task as done within its goal and increment progress. */
+export function updateGoalProgress(
+  goals: Goal[],
+  goalId: string,
+  taskId: string
+): Goal[] {
+  return goals.map((g) => {
+    if (g.id !== goalId) return g;
+    const markIn = (tasks: Task[]) =>
+      tasks.map((t) => (t.id === taskId ? { ...t, isDone: true } : t));
+    return {
+      ...g,
+      tasksEasy:   markIn(g.tasksEasy),
+      tasksMedium: markIn(g.tasksMedium),
+      tasksHard:   markIn(g.tasksHard),
+      progress:    g.progress + 1,
+    };
+  });
 }
 
 const SIMPLIFY_MAP: Record<string, string> = {

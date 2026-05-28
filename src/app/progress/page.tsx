@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import NavigationDots from '@/components/NavigationDots';
 import ProgressBar from '@/components/ProgressBar';
 import BalanceCircle from '@/components/BalanceCircle';
+import WeeklyCalendar from '@/components/WeeklyCalendar';
 import { loadState } from '@/lib/store';
 import { Session } from '@/lib/types';
 
 function calcBalance(sessions: Session[]) {
-  const total = sessions.length || 1;
+  const total     = sessions.length || 1;
   const doneCount = sessions.filter((s) => s.result === 'done').length;
-  const rate = doneCount / total;
+  const rate      = doneCount / total;
   return {
     study:  Math.min(100, Math.round(rate * 70 + 20)),
     health: Math.min(100, Math.round(rate * 50 + 30)),
@@ -39,10 +40,13 @@ export default function ProgressPage() {
 
   if (!state) return null;
 
-  const isDone = state.lastResult === 'done';
-  const goal = state.goal;
-  const progress = goal ? Math.round((goal.progress / goal.total) * 100) : 0;
-  const balance = calcBalance(state.sessions);
+  const isDone       = state.lastResult === 'done';
+  const currentGoal  = state.goals.find((g) => g.id === state.currentGoalId);
+  const progress     = currentGoal
+    ? Math.round((currentGoal.progress / currentGoal.total) * 100)
+    : 0;
+  const balance      = calcBalance(state.sessions);
+  const today        = new Date();
 
   return (
     <div className="screen flex-1 flex flex-col">
@@ -80,12 +84,15 @@ export default function ProgressPage() {
           </div>
         )}
 
-        {/* Progress bar */}
-        {goal && (
+        {/* Progress bar for current goal */}
+        {currentGoal && (
           <div className="space-y-2">
+            <p style={{ fontSize: '12px', color: 'var(--color-text-tertiary)' }}>
+              {currentGoal.title}
+            </p>
             <ProgressBar percent={progress} />
             <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>
-              {goal.progress} / {goal.total} steps
+              {currentGoal.progress} / {currentGoal.total} steps
             </p>
           </div>
         )}
@@ -114,6 +121,13 @@ export default function ProgressPage() {
             ))}
           </div>
         </div>
+
+        {/* Weekly calendar */}
+        <WeeklyCalendar
+          goals={state.goals}
+          sessions={state.sessions}
+          today={today}
+        />
       </div>
 
       {/* CTA */}

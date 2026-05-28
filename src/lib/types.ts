@@ -42,10 +42,11 @@ export interface Session {
 }
 
 export interface AppState {
-  goal: Goal | null;
+  goals: Goal[];
   schedule: ScheduleBlock[];
   sessions: Session[];
   currentEnergy: EnergyLevel | null;
+  currentGoalId: string | null;
   currentTaskId: string | null;
   lastResult: SessionResult | null;
   simplifiedText: string | null;

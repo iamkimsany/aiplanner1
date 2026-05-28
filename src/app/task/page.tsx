@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import NavigationDots from '@/components/NavigationDots';
-import { loadState, saveState, simplify, getFreeWindows, genId } from '@/lib/store';
+import { loadState, saveState, simplify, getFreeWindows, genId, updateGoalProgress } from '@/lib/store';
 import { Task, Goal } from '@/lib/types';
 
 const DIFFICULTY_LABEL: Record<string, string> = {
@@ -26,17 +26,6 @@ function findTaskById(goal: Goal, id: string): Task | null {
   ].find((t) => t.id === id) ?? null;
 }
 
-function markTaskDone(goal: Goal, taskId: string): Goal {
-  const markIn = (tasks: Task[]) =>
-    tasks.map((t) => (t.id === taskId ? { ...t, isDone: true } : t));
-  return {
-    ...goal,
-    tasksEasy:   markIn(goal.tasksEasy),
-    tasksMedium: markIn(goal.tasksMedium),
-    tasksHard:   markIn(goal.tasksHard),
-    progress:    goal.progress + 1,
-  };
-}
 
 function formatTime(t: string): string {
   const [h, m] = t.split(':').map(Number);
@@ -53,14 +42,15 @@ export default function TaskPage() {
 
   useEffect(() => {
     const state = loadState();
-    if (!state.goal || !state.currentEnergy) { router.replace('/energy'); return; }
+    if (!state.goals.length || !state.currentEnergy) { router.replace('/energy'); return; }
 
-    if (!state.currentTaskId) {
+    if (!state.currentTaskId || !state.currentGoalId) {
       setNoTask(true);
       return;
     }
 
-    const found = findTaskById(state.goal, state.currentTaskId);
+    const currentGoal = state.goals.find((g) => g.id === state.currentGoalId);
+    const found = currentGoal ? findTaskById(currentGoal, state.currentTaskId) : null;
     if (!found) { setNoTask(true); return; }
     setTask(found);
 
@@ -74,12 +64,12 @@ export default function TaskPage() {
 
   function handleDone() {
     const state = loadState();
-    if (!state.goal || !task) return;
+    if (!state.goals.length || !state.currentGoalId || !task) return;
 
-    const updatedGoal = markTaskDone(state.goal, task.id);
+    const updatedGoals = updateGoalProgress(state.goals, state.currentGoalId, task.id);
     const session = {
       id: genId(),
-      goalId: state.goal.id,
+      goalId: state.currentGoalId,
       taskId: task.id,
       energy: state.currentEnergy!,
       result: 'done' as const,
@@ -88,7 +78,7 @@ export default function TaskPage() {
 
     saveState({
       ...state,
-      goal: updatedGoal,
+      goals: updatedGoals,
       sessions: [...state.sessions, session],
       lastResult: 'done',
       simplifiedText: null,
@@ -99,12 +89,12 @@ export default function TaskPage() {
 
   function handleCantDo() {
     const state = loadState();
-    if (!state.goal || !task) return;
+    if (!state.goals.length || !state.currentGoalId || !task) return;
 
     const simplified = simplify(task);
     const session = {
       id: genId(),
-      goalId: state.goal.id,
+      goalId: state.currentGoalId,
       taskId: task.id,
       energy: state.currentEnergy!,
       result: 'simplified' as const,

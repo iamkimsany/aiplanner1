@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import NavigationDots from '@/components/NavigationDots';
-import { loadState, saveState, getTask } from '@/lib/store';
+import { loadState, saveState, getNextTask } from '@/lib/store';
 import { EnergyLevel } from '@/lib/types';
 
 const ENERGY_OPTIONS: {
@@ -24,7 +24,7 @@ export default function EnergyPage() {
 
   useEffect(() => {
     const state = loadState();
-    if (!state.goal) router.replace('/');
+    if (!state.goals.length) router.replace('/');
   }, [router]);
 
   function handleSubmit() {
@@ -33,13 +33,14 @@ export default function EnergyPage() {
       return;
     }
     const state = loadState();
-    if (!state.goal) { router.replace('/'); return; }
+    if (!state.goals.length) { router.replace('/'); return; }
 
-    const task = getTask(selected, state.goal);
+    const result = getNextTask(selected, state.goals);
     saveState({
       ...state,
       currentEnergy: selected,
-      currentTaskId: task?.id ?? null,
+      currentGoalId: result?.goal.id ?? null,
+      currentTaskId: result?.task.id ?? null,
       lastResult: null,
       simplifiedText: null,
     });

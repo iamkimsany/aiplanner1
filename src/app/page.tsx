@@ -12,14 +12,21 @@ import {
 } from '@/lib/store';
 import { ScheduleBlock, Goal, Task } from '@/lib/types';
 
-const DAY_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DAY_SHORT  = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const GOAL_COLORS = [
+  'var(--color-study)',
+  'var(--color-health)',
+  'var(--color-hobby)',
+  'var(--color-rest)',
+];
+
 function schedulePillLabel(block: ScheduleBlock): string {
-  const allDays = [0, 1, 2, 3, 4, 5, 6];
+  const allDays  = [0, 1, 2, 3, 4, 5, 6];
   const weekdays = [1, 2, 3, 4, 5];
-  const sorted = [...block.days].sort((a, b) => a - b);
-  const isAllDays = allDays.every((d) => sorted.includes(d));
+  const sorted   = [...block.days].sort((a, b) => a - b);
+  const isAllDays  = allDays.every((d) => sorted.includes(d));
   const isWeekdays = weekdays.every((d) => sorted.includes(d)) && sorted.length === 5;
 
   const daysLabel = isAllDays
@@ -33,20 +40,21 @@ function schedulePillLabel(block: ScheduleBlock): string {
 
 export default function GoalPage() {
   const router = useRouter();
-  const [goalText, setGoalText] = useState('');
-  const [schedule, setSchedule] = useState<ScheduleBlock[]>(DEFAULT_SCHEDULE);
+  const [inputText, setInputText]   = useState('');
+  const [goals, setGoals]           = useState<Goal[]>([]);
+  const [schedule, setSchedule]     = useState<ScheduleBlock[]>(DEFAULT_SCHEDULE);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDays, setNewDays] = useState<number[]>([1, 2, 3, 4, 5]);
-  const [newStart, setNewStart] = useState('09:00');
-  const [newEnd, setNewEnd] = useState('10:00');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [newTitle, setNewTitle]     = useState('');
+  const [newDays, setNewDays]       = useState<number[]>([1, 2, 3, 4, 5]);
+  const [newStart, setNewStart]     = useState('09:00');
+  const [newEnd, setNewEnd]         = useState('10:00');
+  const [isAddingGoal, setIsAddingGoal] = useState(false);
+  const [error, setError]           = useState('');
 
   useEffect(() => {
     const state = loadState();
     setSchedule(state.schedule);
-    if (state.goal) setGoalText(state.goal.title);
+    setGoals(state.goals);
   }, []);
 
   function toggleNewDay(d: number) {
@@ -55,7 +63,7 @@ export default function GoalPage() {
     );
   }
 
-  function addBlock() {
+  function addScheduleBlock() {
     if (!newTitle.trim()) return;
     const block: ScheduleBlock = {
       id: genId(),
@@ -74,22 +82,27 @@ export default function GoalPage() {
     setShowAddForm(false);
   }
 
-  function removeBlock(id: string) {
+  function removeScheduleBlock(id: string) {
     const next = schedule.filter((b) => b.id !== id);
     setSchedule(next);
     saveState({ ...loadState(), schedule: next });
   }
 
-  async function handleSubmit() {
-    if (!goalText.trim()) {
+  function removeGoal(id: string) {
+    const next = goals.filter((g) => g.id !== id);
+    setGoals(next);
+    saveState({ ...loadState(), goals: next });
+  }
+
+  async function handleAddGoal() {
+    if (!inputText.trim()) {
       setError('Please enter a goal.');
       return;
     }
     setError('');
-    setIsLoading(true);
+    setIsAddingGoal(true);
 
-    // Calculate free hours from schedule
-    const windows = getFreeWindows(schedule, new Date());
+    const windows  = getFreeWindows(schedule, new Date());
     const freeHours = windows.reduce((sum, w) => {
       const [sh, sm] = w.start.split(':').map(Number);
       const [eh, em] = w.end.split(':').map(Number);
@@ -97,15 +110,14 @@ export default function GoalPage() {
     }, 0);
 
     try {
-      const res = await fetch('/api/goals', {
+      const res  = await fetch('/api/goals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goal: goalText.trim(), freeHours: Math.round(freeHours) }),
+        body: JSON.stringify({ goal: inputText.trim(), freeHours: Math.round(freeHours) }),
       });
       const data = await res.json();
 
       const goalId = genId();
-
       const makeTasks = (texts: string[], difficulty: 'easy' | 'medium' | 'hard'): Task[] =>
         texts.map((text, i) => ({
           id: genId(),
@@ -118,59 +130,40 @@ export default function GoalPage() {
 
       const goal: Goal = {
         id: goalId,
-        title: goalText.trim(),
-        tasksEasy: makeTasks(data.easy ?? [], 'easy'),
+        title: inputText.trim(),
+        tasksEasy:   makeTasks(data.easy   ?? [], 'easy'),
         tasksMedium: makeTasks(data.medium ?? [], 'medium'),
-        tasksHard: makeTasks(data.hard ?? [], 'hard'),
+        tasksHard:   makeTasks(data.hard   ?? [], 'hard'),
         progress: 0,
         total: (data.easy?.length ?? 0) + (data.medium?.length ?? 0) + (data.hard?.length ?? 0),
         isActive: true,
         createdAt: new Date().toISOString(),
       };
 
-      const state = loadState();
-      saveState({
-        ...state,
-        goal,
-        schedule,
-        sessions: [],
-        currentEnergy: null,
-        currentTaskId: null,
-        lastResult: null,
-        simplifiedText: null,
-      });
-
-      router.push('/energy');
+      const next = [...goals, goal];
+      setGoals(next);
+      saveState({ ...loadState(), goals: next, schedule });
+      setInputText('');
     } catch {
       setError('Something went wrong. Please try again.');
-      setIsLoading(false);
+    } finally {
+      setIsAddingGoal(false);
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="screen flex-1 flex flex-col items-center justify-center space-y-3">
-        <p className="text-[22px] font-medium" style={{ color: 'var(--color-text)' }}>
-          Building your plan...
-        </p>
-        <p className="text-[14px]" style={{ color: 'var(--color-text-secondary)' }}>
-          Analyzing your goal and free time
-        </p>
-        <div className="mt-6 flex gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="w-2 h-2 rounded-full"
-              style={{
-                background: 'var(--color-text)',
-                opacity: 0.3,
-                animation: `fadeIn 0.6s ease ${i * 0.2}s infinite alternate`,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    );
+  function handleContinue() {
+    saveState({
+      ...loadState(),
+      goals,
+      schedule,
+      sessions: [],
+      currentEnergy: null,
+      currentGoalId: null,
+      currentTaskId: null,
+      lastResult: null,
+      simplifiedText: null,
+    });
+    router.push('/energy');
   }
 
   return (
@@ -185,31 +178,81 @@ export default function GoalPage() {
             What do you want to<br />accomplish this week?
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-            Enter any goal — big or small
+            Add one or more goals — big or small
           </p>
         </div>
 
-        {/* Goal input */}
-        <div>
-          <input
-            type="text"
-            value={goalText}
-            onChange={(e) => setGoalText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder="e.g. write my term paper"
-            className="w-full bg-transparent outline-none"
-            style={{
-              fontSize: '17px',
-              fontWeight: 500,
-              color: 'var(--color-text)',
-              borderBottom: '1px solid var(--color-border-medium)',
-              paddingBottom: '10px',
-            }}
-          />
+        {/* Goal input row */}
+        <div className="space-y-3">
+          <div className="flex gap-2 items-end">
+            <input
+              type="text"
+              value={inputText}
+              onChange={(e) => { setInputText(e.target.value); setError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && !isAddingGoal && handleAddGoal()}
+              placeholder="e.g. write my term paper"
+              className="flex-1 bg-transparent outline-none"
+              style={{
+                fontSize: '17px',
+                fontWeight: 500,
+                color: 'var(--color-text)',
+                borderBottom: '1px solid var(--color-border-medium)',
+                paddingBottom: '10px',
+              }}
+            />
+            <button
+              onClick={handleAddGoal}
+              disabled={isAddingGoal}
+              className="shrink-0 rounded-lg px-3 py-2 text-[13px] font-medium"
+              style={{
+                background: 'var(--color-text)',
+                color: '#fff',
+                opacity: isAddingGoal ? 0.5 : 1,
+                marginBottom: '2px',
+              }}
+            >
+              {isAddingGoal ? '...' : '+ Add'}
+            </button>
+          </div>
+
           {error && (
-            <p className="mt-2 text-[13px]" style={{ color: 'var(--color-rest)' }}>
-              {error}
-            </p>
+            <p className="text-[13px]" style={{ color: 'var(--color-rest)' }}>{error}</p>
+          )}
+
+          {/* Goal pills */}
+          {goals.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {goals.map((g, i) => (
+                <div
+                  key={g.id}
+                  className="flex items-center gap-1.5 rounded-full px-3 py-1.5"
+                  style={{
+                    background: 'var(--color-bg-secondary)',
+                    border: `1px solid ${GOAL_COLORS[i % GOAL_COLORS.length]}`,
+                    fontSize: '13px',
+                    color: 'var(--color-text)',
+                    maxWidth: '100%',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '7px', height: '7px', borderRadius: '50%',
+                      background: GOAL_COLORS[i % GOAL_COLORS.length],
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span className="truncate" style={{ maxWidth: '180px' }}>{g.title}</span>
+                  <button
+                    onClick={() => removeGoal(g.id)}
+                    className="leading-none"
+                    style={{ color: 'var(--color-text-tertiary)', fontSize: '15px', marginLeft: '2px' }}
+                    aria-label={`Remove ${g.title}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -240,7 +283,7 @@ export default function GoalPage() {
               >
                 <span>{schedulePillLabel(block)}</span>
                 <button
-                  onClick={() => removeBlock(block.id)}
+                  onClick={() => removeScheduleBlock(block.id)}
                   className="leading-none"
                   style={{ color: 'var(--color-text-tertiary)', fontSize: '14px' }}
                   aria-label={`Remove ${block.title}`}
@@ -250,7 +293,6 @@ export default function GoalPage() {
               </div>
             ))}
 
-            {/* + Add button */}
             <button
               onClick={() => setShowAddForm((v) => !v)}
               className="rounded-full px-3 py-1.5"
@@ -317,7 +359,7 @@ export default function GoalPage() {
                 />
               </div>
               <button
-                onClick={addBlock}
+                onClick={addScheduleBlock}
                 className="w-full py-2 rounded-lg text-[13px] font-medium"
                 style={{ background: 'var(--color-text)', color: '#fff' }}
               >
@@ -330,13 +372,15 @@ export default function GoalPage() {
 
       {/* CTA */}
       <div className="space-y-6 pt-8">
-        <button
-          onClick={handleSubmit}
-          className="w-full py-[14px] rounded-[10px] text-[15px] font-medium transition-colors"
-          style={{ background: 'var(--color-text)', color: '#fff' }}
-        >
-          AI builds your plan →
-        </button>
+        {goals.length > 0 && (
+          <button
+            onClick={handleContinue}
+            className="w-full py-[14px] rounded-[10px] text-[15px] font-medium"
+            style={{ background: 'var(--color-text)', color: '#fff' }}
+          >
+            Continue →
+          </button>
+        )}
 
         <NavigationDots total={4} current={0} />
       </div>
