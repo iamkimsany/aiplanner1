@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import NavigationDots from '@/components/NavigationDots';
-import { loadState, saveState, DEFAULT_SCHEDULE, getFreeWindows, genId, savePdf, loadPdf, deletePdf } from '@/lib/store';
+import { loadState, saveState, DEFAULT_SCHEDULE, getFreeWindows, genId } from '@/lib/store';
 import { ScheduleBlock, Goal, Task, GoalType } from '@/lib/types';
 
 // ─── Schedule helpers ─────────────────────────────────────────────────────────
@@ -57,8 +57,12 @@ export default function GoalPage() {
   const [goalInput, setGoalInput]   = useState('');
   const [goalType, setGoalType]     = useState<GoalType>('deadline'); // 'deadline' | 'nodeadline'
   const [goalDeadline, setGoalDeadline] = useState('');
-  const [goalPdfName,    setGoalPdfName]    = useState('');
-  const [goalPdfBase64,  setGoalPdfBase64]  = useState('');
+  const [goalPdfName,  setGoalPdfName]  = useState('');
+
+  // PDF files stored in memory (no localStorage — avoids 5MB quota issue with large base64)
+  // pendingPdfFileRef holds the file while the form is open; moved to pdfFilesRef on addGoal()
+  const pendingPdfFileRef = useRef<File | null>(null);
+  const pdfFilesRef       = useRef<Record<string, File>>({});
 
   // Schedule state
   const [schedule, setSchedule]     = useState<ScheduleBlock[]>(DEFAULT_SCHEDULE);
@@ -87,7 +91,7 @@ export default function GoalPage() {
       title:      goalInput.trim(),
       type:       goalType,
       deadline:   goalType === 'deadline' && goalDeadline ? goalDeadline : undefined,
-      pdfName:    goalType === 'deadline' && goalPdfName   ? goalPdfName   : undefined,
+      pdfName:    goalType === 'deadline' && goalPdfName  ? goalPdfName  : undefined,
       tasksEasy:   [],
       tasksMedium: [],
       tasksHard:   [],
@@ -96,18 +100,21 @@ export default function GoalPage() {
       createdAt: new Date().toISOString(),
       checkedAt: null,
     };
-    // Persist PDF separately to avoid bloating the main state JSON
-    if (goalType === 'deadline' && goalPdfBase64) savePdf(id, goalPdfBase64);
+    // Move the File object from the temp ref to the permanent map keyed by goalId
+    if (goalType === 'deadline' && pendingPdfFileRef.current) {
+      pdfFilesRef.current[id] = pendingPdfFileRef.current;
+      pendingPdfFileRef.current = null;
+    }
     const next = [...goals, draft];
     setGoals(next);
     saveState({ ...loadState(), goals: next });
     setGoalInput(''); setGoalDeadline('');
-    setGoalPdfName(''); setGoalPdfBase64('');
+    setGoalPdfName('');
     setGoalType('deadline'); setShowGoalForm(false);
   }
 
   function removeGoal(id: string) {
-    deletePdf(id);
+    delete pdfFilesRef.current[id];
     const next = goals.filter((g) => g.id !== id);
     setGoals(next);
     saveState({ ...loadState(), goals: next });
@@ -124,14 +131,9 @@ export default function GoalPage() {
       return;
     }
     setError('');
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result as string;
-      // result = "data:application/pdf;base64,<data>"
-      setGoalPdfBase64(result.split(',')[1]);
-      setGoalPdfName(file.name);
-    };
-    reader.readAsDataURL(file);
+    // Store File object in memory — base64 conversion happens at build time
+    pendingPdfFileRef.current = file;
+    setGoalPdfName(file.name);
   }
 
   // ── Schedule form ───────────────────────────────────────────────────────────
@@ -186,8 +188,18 @@ export default function GoalPage() {
           continue;
         }
 
-        // Load the PDF (stored separately to keep AppState lean)
-        const pdfBase64 = goal.pdfName ? loadPdf(goal.id) : null;
+        // Convert the in-memory File to base64 right before the API call
+        const toBase64 = (file: File): Promise<string> =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload  = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+        const pdfFile   = goal.pdfName ? (pdfFilesRef.current[goal.id] ?? null) : null;
+        const pdfBase64 = pdfFile ? await toBase64(pdfFile) : null;
+        console.log(`Goal "${goal.title}" — PDF attached: ${!!pdfBase64}, base64 length: ${pdfBase64?.length ?? 0}`);
 
         const res  = await fetch('/api/goals', {
           method: 'POST',
@@ -371,7 +383,7 @@ export default function GoalPage() {
                         {goalPdfName}
                       </p>
                       <button
-                        onClick={() => { setGoalPdfName(''); setGoalPdfBase64(''); }}
+                        onClick={() => { setGoalPdfName(''); pendingPdfFileRef.current = null; }}
                         style={{ color: 'var(--color-text-tertiary)', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}
                         aria-label="Remove PDF"
                       >
@@ -412,7 +424,7 @@ export default function GoalPage() {
                   Add
                 </button>
                 <button
-                  onClick={() => { setShowGoalForm(false); setGoalInput(''); setGoalPdfName(''); setGoalPdfBase64(''); }}
+                  onClick={() => { setShowGoalForm(false); setGoalInput(''); setGoalPdfName(''); pendingPdfFileRef.current = null; }}
                   className="px-4 py-2 rounded-lg text-[13px]"
                   style={{ color: 'var(--color-text-secondary)', border: '0.5px solid var(--color-border-medium)' }}
                 >

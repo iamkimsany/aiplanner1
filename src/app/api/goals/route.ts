@@ -133,11 +133,19 @@ function fallback(goal: string): GoalResponse {
 }
 
 export async function POST(req: NextRequest) {
-  const { goal, pdfBase64 } = await req.json();
+  const body = await req.json();
+  const { goal, pdfBase64 } = body;
+
+  console.log('PDF received:', !!pdfBase64, 'length:', pdfBase64?.length ?? 0);
 
   if (!process.env.ANTHROPIC_API_KEY) {
+    console.log('No API key — returning fallback');
     return Response.json(fallback(goal));
   }
+
+  // Only use the PDF if it has real content (strips any accidental empty string)
+  const validPdf = pdfBase64 && pdfBase64.length > 100 ? pdfBase64 : null;
+  console.log('Using PDF:', !!validPdf, '| Using text-only:', !validPdf);
 
   // Build message content: plain text, or [document + text] when a PDF is attached
   type MessageContent =
@@ -147,11 +155,11 @@ export async function POST(req: NextRequest) {
         | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string } }
       >;
 
-  const content: MessageContent = pdfBase64
+  const content: MessageContent = validPdf
     ? [
         {
           type: 'document' as const,
-          source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: pdfBase64 },
+          source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: validPdf },
         },
         {
           type: 'text' as const,
