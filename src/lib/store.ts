@@ -140,6 +140,21 @@ export function formatTime(t: string): string {
 
 // ─── Stats helpers ────────────────────────────────────────────────────────────
 
+/**
+ * Map a goal title to one of the four life-balance categories.
+ * Priority: study → health → rest → hobby (default).
+ */
+export function categorizeGoalTitle(title: string): 'study' | 'health' | 'hobby' | 'rest' {
+  const t = title.toLowerCase();
+  if (/exam|study|read|write|course|learn|book|chapter|homework|prep|research|university|school|class/.test(t))
+    return 'study';
+  if (/run|gym|workout|exercise|yoga|swim|walk|sport|fitness|train|stretch|km|steps/.test(t))
+    return 'health';
+  if (/rest|relax|nap|break|movie|series|game|chill/.test(t))
+    return 'rest';
+  return 'hobby';
+}
+
 /** Consecutive-day streak from sessions (today = day 0). */
 export function calcStreak(sessions: Session[]): number {
   const days  = new Set(sessions.map((s) => s.createdAt.slice(0, 10)));
@@ -153,31 +168,67 @@ export function calcStreak(sessions: Session[]): number {
   return streak;
 }
 
-/** Weekly life-balance percentages derived from sessions + schedule. */
-export function calcBalance(sessions: Session[], schedule: ScheduleBlock[]) {
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  weekStart.setHours(0, 0, 0, 0);
+/**
+ * Weekly life-balance percentages (0–100) derived from completed-task history
+ * and passive schedule blocks. Resets naturally every Monday — only entries
+ * from Monday 00:00 to now are included.
+ *
+ * Active contributions (from completedTaskHistory this week):
+ *   focus-session task  → +5% to its category
+ *   nodeadline checkbox → +3% to its category
+ *
+ * Passive schedule contributions (one-off bonuses per week):
+ *   sleep block present                  → +20% to rest
+ *   gym/yoga/sport block on 3+ days      → +15% to health
+ *   university/school block on 3+ days   → +15% to study
+ */
+export function calcBalance(
+  history: Record<string, CompletedTaskEntry[]>,
+  schedule: ScheduleBlock[],
+): { study: number; health: number; hobby: number; rest: number } {
+  const result = { study: 0, health: 0, hobby: 0, rest: 0 };
 
-  const weekSessions = sessions.filter((s) => new Date(s.createdAt) >= weekStart);
-  const done  = weekSessions.filter((s) => s.result === 'done').length;
-  const total = Math.max(weekSessions.length, 1);
-  const rate  = done / total;
+  // Monday 00:00 of the current week
+  const now    = new Date();
+  const dow    = now.getDay(); // 0 = Sun
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((dow + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+  const mondayStr = monday.toISOString().slice(0, 10);
+  const todayStr  = now.toISOString().slice(0, 10);
 
-  const gymMins = schedule
-    .filter((b) => b.title.toLowerCase().includes('gym') && b.startTime < b.endTime)
-    .reduce((acc, b) => {
-      const [sh, sm] = b.startTime.split(':').map(Number);
-      const [eh, em] = b.endTime.split(':').map(Number);
-      return acc + (eh * 60 + em - sh * 60 - sm);
-    }, 0);
+  // Active: sum completed tasks this week
+  for (const [dateStr, entries] of Object.entries(history ?? {})) {
+    if (dateStr < mondayStr || dateStr > todayStr) continue;
+    for (const entry of entries) {
+      const cat = categorizeGoalTitle(entry.goalTitle);
+      const pts = entry.isQuick ? 3 : 5;
+      result[cat] = Math.min(100, result[cat] + pts);
+    }
+  }
 
-  return {
-    study:  Math.min(100, Math.round(rate * 60 + 20)),
-    health: Math.min(100, Math.round(Math.min(gymMins / 180, 1) * 70 + 15)),
-    hobby:  Math.min(100, Math.round(rate * 65 + 15)),
-    rest:   Math.min(100, Math.round(100 - rate * 40)),
-  };
+  // Passive: sleep → rest
+  if (schedule.some((b) => /sleep/i.test(b.title))) {
+    result.rest = Math.min(100, result.rest + 20);
+  }
+
+  // Passive: gym/yoga/sport on 3+ days → health
+  const gymDays = new Set(
+    schedule
+      .filter((b) => /yoga|gym|sport|workout|run|walk|swim/i.test(b.title))
+      .flatMap((b) => b.days),
+  );
+  if (gymDays.size >= 3) result.health = Math.min(100, result.health + 15);
+
+  // Passive: university/school on 3+ days → study
+  const schoolDays = new Set(
+    schedule
+      .filter((b) => /university|school|class|lecture|homework/i.test(b.title))
+      .flatMap((b) => b.days),
+  );
+  if (schoolDays.size >= 3) result.study = Math.min(100, result.study + 15);
+
+  return result;
 }
 
 /** Local AI balance tip based on computed percentages. */
@@ -199,17 +250,22 @@ export function genId(): string {
 /**
  * Append one completed task to the persistent history under today's date.
  * Never overwrites existing entries — always accumulates.
+ * @param isQuick true for nodeadline checkbox completions (affects balance weight)
  */
 export function appendCompletedTask(
   state: AppState,
   goalTitle: string,
   taskText: string,
+  isQuick = false,
 ): AppState {
   const now   = new Date();
   const today = now.toISOString().slice(0, 10);
   const hh    = String(now.getHours()).padStart(2, '0');
   const mm    = String(now.getMinutes()).padStart(2, '0');
-  const entry: CompletedTaskEntry = { goalTitle, taskText, completedAt: `${hh}:${mm}` };
+  const entry: CompletedTaskEntry = {
+    goalTitle, taskText, completedAt: `${hh}:${mm}`,
+    ...(isQuick ? { isQuick: true } : {}),
+  };
   const existing = state.completedTaskHistory?.[today] ?? [];
   return {
     ...state,

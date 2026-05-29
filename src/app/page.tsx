@@ -55,7 +55,7 @@ export default function GoalPage() {
   const [goals, setGoals]           = useState<Goal[]>([]);
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [goalInput, setGoalInput]   = useState('');
-  const [goalType, setGoalType]     = useState<GoalType>('deadline');
+  const [goalType, setGoalType]     = useState<GoalType>('deadline'); // 'deadline' | 'nodeadline'
   const [goalDeadline, setGoalDeadline] = useState('');
   const [goalUrl, setGoalUrl]       = useState('');
 
@@ -92,6 +92,7 @@ export default function GoalPage() {
       progress: 0, total: 0,
       isActive: true,
       createdAt: new Date().toISOString(),
+      checkedAt: null,
     };
     const next = [...goals, draft];
     setGoals(next);
@@ -151,6 +152,13 @@ export default function GoalPage() {
       const updatedGoals: Goal[] = [];
 
       for (const goal of goals) {
+        // No-deadline goals are one-tap checkboxes — skip AI entirely
+        if (goal.type === 'nodeadline') {
+          console.log(`Goal: "${goal.title}" [no-deadline] — skipping AI`);
+          updatedGoals.push({ ...goal, tasksEasy: [], tasksMedium: [], tasksHard: [], total: 0, checkedAt: null });
+          continue;
+        }
+
         const res  = await fetch('/api/goals', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -248,8 +256,8 @@ export default function GoalPage() {
                   {g.title}
                 </p>
                 <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                  {g.type === 'habit'
-                    ? 'Habit · every day'
+                  {g.type === 'nodeadline'
+                    ? 'No deadline · quick task'
                     : [
                         g.deadline ? `Due ${new Date(g.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
                         g.materialUrl ? `· ${new URL(g.materialUrl).hostname}` : null,
@@ -296,7 +304,7 @@ export default function GoalPage() {
 
               {/* Type toggle */}
               <div className="flex gap-2">
-                {(['deadline', 'habit'] as GoalType[]).map((t) => (
+                {(['deadline', 'nodeadline'] as GoalType[]).map((t) => (
                   <button
                     key={t}
                     onClick={() => setGoalType(t)}
@@ -308,12 +316,12 @@ export default function GoalPage() {
                       border: goalType === t ? 'none' : '0.5px solid var(--color-border-medium)',
                     }}
                   >
-                    {t === 'deadline' ? 'Deadline' : 'Daily habit'}
+                    {t === 'deadline' ? 'Deadline' : 'No deadline'}
                   </button>
                 ))}
               </div>
 
-              {/* Deadline extras */}
+              {/* Deadline extras — hidden for no-deadline goals */}
               {goalType === 'deadline' && (
                 <div className="space-y-2">
                   <input

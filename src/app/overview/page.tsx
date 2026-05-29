@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import NavigationDots from '@/components/NavigationDots';
 import BalanceCard from '@/components/BalanceCard';
 import { loadState, calcBalance, balanceTip } from '@/lib/store';
-import { Session, CompletedTaskEntry } from '@/lib/types';
+import { CompletedTaskEntry } from '@/lib/types';
 
 // ─── Balance config ───────────────────────────────────────────────────────────
 
@@ -50,17 +50,15 @@ export default function OverviewPage() {
   const router = useRouter();
   const [balance,      setBalance]      = useState({ study: 0, health: 0, hobby: 0, rest: 0 });
   const [tip,          setTip]          = useState('');
-  const [sessions,     setSessions]     = useState<Session[]>([]);
   const [taskHistory,  setTaskHistory]  = useState<Record<string, CompletedTaskEntry[]>>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [today,        setToday]        = useState(new Date());
 
   useEffect(() => {
     const state = loadState();
-    const bal   = calcBalance(state.sessions, state.schedule);
+    const bal   = calcBalance(state.completedTaskHistory ?? {}, state.schedule);
     setBalance(bal);
     setTip(balanceTip(bal));
-    setSessions(state.sessions);
     setTaskHistory(state.completedTaskHistory ?? {});
     setToday(new Date());
   }, []);
@@ -70,9 +68,6 @@ export default function OverviewPage() {
 
   // Week range label
   const weekLabel = `${days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-
-  // Suppress unused-variable warning — sessions is kept for future balance recalc
-  void sessions;
 
   return (
     <div className="screen flex-1 flex flex-col">

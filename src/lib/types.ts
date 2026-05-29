@@ -1,7 +1,7 @@
 export type Difficulty   = 'easy' | 'medium' | 'hard';
 export type EnergyLevel  = 'low'  | 'medium' | 'high';
 export type SessionResult = 'done' | 'simplified' | 'skipped';
-export type GoalType     = 'deadline' | 'habit';
+export type GoalType     = 'deadline' | 'nodeadline';
 
 export interface Task {
   id: string;
@@ -27,6 +27,8 @@ export interface Goal {
   total: number;
   isActive: boolean;
   createdAt: string;
+  /** ISO date "2026-05-29" when this nodeadline goal was checked today, null otherwise */
+  checkedAt?: string | null;
 }
 
 export interface ScheduleBlock {
@@ -70,6 +72,8 @@ export interface CompletedTaskEntry {
   goalTitle: string;
   taskText: string;
   completedAt: string; // "HH:MM"
+  /** true for one-tap nodeadline checkbox completions (affects balance score) */
+  isQuick?: boolean;
 }
 
 export interface AppState {
