@@ -1,4 +1,7 @@
 import { NextRequest } from 'next/server';
+// pdf-parse is CJS-only — require avoids ESM interop issues
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require('pdf-parse');
 
 interface TaskWithSimplified {
   text: string;
@@ -154,18 +157,33 @@ export async function POST(req: NextRequest) {
   const validPdf = pdfBase64 && pdfBase64.length > 100 ? pdfBase64 : null;
   console.log('Using PDF:', !!validPdf, '| Using text-only:', !validPdf);
 
-  // PDFs cannot be sent as image_url to OpenAI
-  // Instead, send the base64 as a text message explaining it's a PDF
-  const messages = validPdf ? [
+  // Extract plain text from the PDF server-side so GPT-4o can actually read it
+  let pdfText: string | null = null;
+  if (validPdf) {
+    try {
+      const buffer = Buffer.from(validPdf, 'base64');
+      const result = await pdfParse(buffer);
+      pdfText = result.text?.trim() ?? null;
+      console.log('PDF text extracted, length:', pdfText?.length ?? 0);
+      console.log('PDF text preview:', pdfText?.slice(0, 200));
+    } catch (e) {
+      console.error('PDF parse failed:', e);
+      pdfText = null;
+    }
+  }
+
+  const messages = pdfText ? [
     {
       role: 'user',
       content: `You are a study planner. The user's goal: "${goal}".
 
-Here is the base64-encoded content of their study material PDF. Decode and read it to understand the topics, then generate specific sequential study tasks based on its actual content.
+Here is the extracted text from their study material:
 
-PDF (base64): ${validPdf.slice(0, 8000)}
+---
+${pdfText.slice(0, 6000)}
+---
 
-Based on what you can read from this material, generate tasks that reference real topics from the document.
+Generate specific sequential study tasks based on the ACTUAL content above — reference real topics, chapters, or problems from the document. Do not generate generic tasks.
 
 Return ONLY valid JSON, no markdown:
 {"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[]}`,
