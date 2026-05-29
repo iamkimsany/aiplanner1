@@ -247,6 +247,30 @@ export function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
+// ─── PDF storage ──────────────────────────────────────────────────────────────
+// Stored separately (not inside AppState JSON) to avoid hitting the 5MB limit.
+
+const PDF_PREFIX = 'juststart_pdf_';
+
+/** Persist base64-encoded PDF for a goal. Logs on quota error. */
+export function savePdf(goalId: string, base64: string): void {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(PDF_PREFIX + goalId, base64); }
+  catch (e) { console.error('PDF save failed (storage full?):', e); }
+}
+
+/** Load base64 PDF for a goal, or null if none was saved. */
+export function loadPdf(goalId: string): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(PDF_PREFIX + goalId);
+}
+
+/** Remove a goal's PDF from localStorage (call on goal delete / plan rebuild). */
+export function deletePdf(goalId: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(PDF_PREFIX + goalId);
+}
+
 /**
  * Append one completed task to the persistent history under today's date.
  * Never overwrites existing entries — always accumulates.

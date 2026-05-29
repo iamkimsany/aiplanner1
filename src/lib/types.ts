@@ -19,7 +19,7 @@ export interface Goal {
   title: string;
   type: GoalType;
   deadline?: string;    // ISO date "2026-06-15"
-  materialUrl?: string;
+  pdfName?: string;     // original filename of uploaded PDF (base64 stored separately)
   tasksEasy:   Task[];
   tasksMedium: Task[];
   tasksHard:   Task[];

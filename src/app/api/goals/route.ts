@@ -133,12 +133,32 @@ function fallback(goal: string): GoalResponse {
 }
 
 export async function POST(req: NextRequest) {
-  // energy and freeHours kept in signature for backward compat but no longer used in prompt
-  const { goal } = await req.json();
+  const { goal, pdfBase64 } = await req.json();
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json(fallback(goal));
   }
+
+  // Build message content: plain text, or [document + text] when a PDF is attached
+  type MessageContent =
+    | string
+    | Array<
+        | { type: 'text'; text: string }
+        | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string } }
+      >;
+
+  const content: MessageContent = pdfBase64
+    ? [
+        {
+          type: 'document' as const,
+          source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: pdfBase64 },
+        },
+        {
+          type: 'text' as const,
+          text: `Read this PDF and use it to generate relevant, specific study tasks based on the actual content.\n\n${PROMPT(goal)}`,
+        },
+      ]
+    : PROMPT(goal);
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -151,7 +171,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2048,
-        messages: [{ role: 'user', content: PROMPT(goal) }],
+        messages: [{ role: 'user', content }],
       }),
     });
 

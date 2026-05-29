@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import NavigationDots from '@/components/NavigationDots';
-import { loadState, saveState, DEFAULT_SCHEDULE, getFreeWindows, genId } from '@/lib/store';
+import { loadState, saveState, DEFAULT_SCHEDULE, getFreeWindows, genId, savePdf, loadPdf, deletePdf } from '@/lib/store';
 import { ScheduleBlock, Goal, Task, GoalType } from '@/lib/types';
 
 // ─── Schedule helpers ─────────────────────────────────────────────────────────
@@ -57,7 +57,8 @@ export default function GoalPage() {
   const [goalInput, setGoalInput]   = useState('');
   const [goalType, setGoalType]     = useState<GoalType>('deadline'); // 'deadline' | 'nodeadline'
   const [goalDeadline, setGoalDeadline] = useState('');
-  const [goalUrl, setGoalUrl]       = useState('');
+  const [goalPdfName,    setGoalPdfName]    = useState('');
+  const [goalPdfBase64,  setGoalPdfBase64]  = useState('');
 
   // Schedule state
   const [schedule, setSchedule]     = useState<ScheduleBlock[]>(DEFAULT_SCHEDULE);
@@ -80,12 +81,13 @@ export default function GoalPage() {
 
   function addGoal() {
     if (!goalInput.trim()) return;
+    const id = genId();
     const draft: Goal = {
-      id:         genId(),
+      id,
       title:      goalInput.trim(),
       type:       goalType,
       deadline:   goalType === 'deadline' && goalDeadline ? goalDeadline : undefined,
-      materialUrl: goalType === 'deadline' && goalUrl.trim() ? goalUrl.trim() : undefined,
+      pdfName:    goalType === 'deadline' && goalPdfName   ? goalPdfName   : undefined,
       tasksEasy:   [],
       tasksMedium: [],
       tasksHard:   [],
@@ -94,17 +96,42 @@ export default function GoalPage() {
       createdAt: new Date().toISOString(),
       checkedAt: null,
     };
+    // Persist PDF separately to avoid bloating the main state JSON
+    if (goalType === 'deadline' && goalPdfBase64) savePdf(id, goalPdfBase64);
     const next = [...goals, draft];
     setGoals(next);
     saveState({ ...loadState(), goals: next });
-    setGoalInput(''); setGoalDeadline(''); setGoalUrl('');
+    setGoalInput(''); setGoalDeadline('');
+    setGoalPdfName(''); setGoalPdfBase64('');
     setGoalType('deadline'); setShowGoalForm(false);
   }
 
   function removeGoal(id: string) {
+    deletePdf(id);
     const next = goals.filter((g) => g.id !== id);
     setGoals(next);
     saveState({ ...loadState(), goals: next });
+  }
+
+  // ── PDF upload ──────────────────────────────────────────────────────────────
+
+  function handlePdfChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      setError('PDF is too large (max 3 MB). Please use a smaller file.');
+      e.target.value = '';
+      return;
+    }
+    setError('');
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      // result = "data:application/pdf;base64,<data>"
+      setGoalPdfBase64(result.split(',')[1]);
+      setGoalPdfName(file.name);
+    };
+    reader.readAsDataURL(file);
   }
 
   // ── Schedule form ───────────────────────────────────────────────────────────
@@ -159,11 +186,13 @@ export default function GoalPage() {
           continue;
         }
 
+        // Load the PDF (stored separately to keep AppState lean)
+        const pdfBase64 = goal.pdfName ? loadPdf(goal.id) : null;
+
         const res  = await fetch('/api/goals', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // energy not chosen yet — default to 'medium' so the prompt is still useful
-          body: JSON.stringify({ goal: goal.title, energy: 'medium', freeHours }),
+          body: JSON.stringify({ goal: goal.title, freeHours, ...(pdfBase64 ? { pdfBase64 } : {}) }),
         });
         const data = await res.json();
 
@@ -260,7 +289,7 @@ export default function GoalPage() {
                     ? 'No deadline · quick task'
                     : [
                         g.deadline ? `Due ${new Date(g.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null,
-                        g.materialUrl ? `· ${new URL(g.materialUrl).hostname}` : null,
+                        g.pdfName   ? `· 📄 ${g.pdfName}` : null,
                       ].filter(Boolean).join(' ') || 'Deadline goal'}
                 </p>
               </div>
@@ -331,14 +360,46 @@ export default function GoalPage() {
                     className="w-full bg-transparent outline-none text-[13px]"
                     style={{ color: 'var(--color-text)', border: '0.5px solid var(--color-border)', borderRadius: '6px', padding: '4px 8px' }}
                   />
-                  <input
-                    type="url"
-                    value={goalUrl}
-                    onChange={(e) => setGoalUrl(e.target.value)}
-                    placeholder="Study material URL (optional)"
-                    className="w-full bg-transparent outline-none text-[13px]"
-                    style={{ color: 'var(--color-text)', border: '0.5px solid var(--color-border)', borderRadius: '6px', padding: '4px 8px' }}
-                  />
+                  {/* PDF upload */}
+                  {goalPdfName ? (
+                    <div
+                      className="flex items-center gap-2 rounded-lg px-3 py-2"
+                      style={{ background: 'var(--color-bg)', border: '0.5px solid var(--color-border)' }}
+                    >
+                      <span style={{ fontSize: '12px', color: 'var(--color-purple)', flexShrink: 0 }}>📄</span>
+                      <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {goalPdfName}
+                      </p>
+                      <button
+                        onClick={() => { setGoalPdfName(''); setGoalPdfBase64(''); }}
+                        style={{ color: 'var(--color-text-tertiary)', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}
+                        aria-label="Remove PDF"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : (
+                    <label style={{ display: 'block', cursor: 'pointer' }}>
+                      <input
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        onChange={handlePdfChange}
+                        style={{ display: 'none' }}
+                      />
+                      <div
+                        style={{
+                          border: '1px dashed var(--color-border-medium)',
+                          borderRadius: '6px',
+                          padding: '7px 12px',
+                          textAlign: 'center',
+                          fontSize: '12px',
+                          color: 'var(--color-text-secondary)',
+                        }}
+                      >
+                        📎 Upload PDF (optional)
+                      </div>
+                    </label>
+                  )}
                 </div>
               )}
 
@@ -351,7 +412,7 @@ export default function GoalPage() {
                   Add
                 </button>
                 <button
-                  onClick={() => { setShowGoalForm(false); setGoalInput(''); }}
+                  onClick={() => { setShowGoalForm(false); setGoalInput(''); setGoalPdfName(''); setGoalPdfBase64(''); }}
                   className="px-4 py-2 rounded-lg text-[13px]"
                   style={{ color: 'var(--color-text-secondary)', border: '0.5px solid var(--color-border-medium)' }}
                 >
