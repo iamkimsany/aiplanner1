@@ -137,8 +137,9 @@ export async function POST(req: NextRequest) {
   const { goal, pdfBase64 } = body;
 
   console.log('PDF received:', !!pdfBase64, 'length:', pdfBase64?.length ?? 0);
+  console.log('OPENAI_API_KEY present:', !!process.env.OPENAI_API_KEY);
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     console.log('No API key — returning fallback');
     return Response.json(fallback(goal));
   }
@@ -147,45 +148,45 @@ export async function POST(req: NextRequest) {
   const validPdf = pdfBase64 && pdfBase64.length > 100 ? pdfBase64 : null;
   console.log('Using PDF:', !!validPdf, '| Using text-only:', !validPdf);
 
-  // Build message content: plain text, or [document + text] when a PDF is attached
-  type MessageContent =
-    | string
-    | Array<
-        | { type: 'text'; text: string }
-        | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string } }
-      >;
-
-  const content: MessageContent = validPdf
-    ? [
-        {
-          type: 'document' as const,
-          source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: validPdf },
-        },
-        {
-          type: 'text' as const,
-          text: `Read this PDF and use it to generate relevant, specific study tasks based on the actual content.\n\n${PROMPT(goal)}`,
-        },
-      ]
-    : PROMPT(goal);
-
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2048,
-        messages: [{ role: 'user', content }],
+        model: 'gpt-4o',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: validPdf ? [
+            {
+              type: 'text',
+              text: `You are a study planner. Goal: "${goal}". Read the attached PDF and generate specific sequential tasks based on its actual content. Return ONLY valid JSON no markdown: {"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[...]}`,
+            },
+            {
+              type: 'image_url',
+              image_url: { url: `data:application/pdf;base64,${validPdf}` },
+            },
+          ] : [
+            {
+              type: 'text',
+              text: `You are a planner. Break down this goal into specific sequential steps: "${goal}". Return ONLY valid JSON no markdown: {"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[...]}`,
+            },
+          ],
+        }],
       }),
     });
 
-    const data  = await res.json();
-    const text: string = data.content?.[0]?.text ?? '';
-    const parsed: GoalResponse = JSON.parse(text);
+    console.log('OpenAI response status:', response.status);
+    const data = await response.json();
+    console.log('OpenAI response:', JSON.stringify(data).slice(0, 300));
+
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('No content from OpenAI');
+
+    const parsed: GoalResponse = JSON.parse(content.replace(/```json|```/g, '').trim());
     return Response.json(parsed);
   } catch {
     return Response.json(fallback(goal));
