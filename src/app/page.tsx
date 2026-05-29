@@ -164,20 +164,30 @@ export default function GoalPage() {
           items: { text: string; simplified: [string, string] }[],
           difficulty: 'easy' | 'medium' | 'hard'
         ): Task[] =>
-          (items ?? []).map((item, i) => ({
-            id: genId(), goalId: goal.id,
-            text: item.text,
-            simplifiedVersions: item.simplified ?? [],
-            difficulty, isDone: false, order: i,
-          }));
+          (items ?? []).map((item, i) => {
+            console.log(`Goal: ${goal.title} → Task [${difficulty}]: ${item.text}`);
+            const task: Task = {
+              id: genId(), goalId: goal.id,
+              text: item.text,
+              simplifiedVersions: item.simplified ?? [],
+              difficulty, isDone: false, order: i,
+            };
+            // Verify goal assignment before saving
+            if (task.goalId !== goal.id) {
+              console.error(`❌ goalId mismatch! task.goalId=${task.goalId} goal.id=${goal.id}`);
+            }
+            return task;
+          });
 
-        updatedGoals.push({
+        const builtGoal: Goal = {
           ...goal,
           tasksEasy:   makeTasks(data.easy   ?? [], 'easy'),
           tasksMedium: makeTasks(data.medium ?? [], 'medium'),
           tasksHard:   makeTasks(data.hard   ?? [], 'hard'),
           total: (data.easy?.length ?? 0) + (data.medium?.length ?? 0) + (data.hard?.length ?? 0),
-        });
+        };
+        console.log(`✓ Goal "${builtGoal.title}" (id=${builtGoal.id}) — ${builtGoal.total} tasks saved`);
+        updatedGoals.push(builtGoal);
       }
 
       saveState({

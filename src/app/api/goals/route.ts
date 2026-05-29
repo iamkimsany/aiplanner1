@@ -44,22 +44,22 @@ function fallback(goal: string): GoalResponse {
   return {
     summary: `Let's break "${goal}" into small, doable steps — starting with the easiest one.`,
     easy: [
-      { text: `Open your notes for "${goal}"`,          simplified: ['Look at your notes for 1 minute',      'Find the file or notebook'] },
-      { text: 'Read what you have so far for 2 min',   simplified: ['Skim the first paragraph',             'Open the document'] },
-      { text: 'Write one sentence about your goal',    simplified: ['Type one word that describes it',      'Think about it for 1 min'] },
-      { text: 'Find one useful resource online',       simplified: ['Search for it and save one link',      'Google the topic name'] },
+      { text: `Open your notes or materials for "${goal}"`,           simplified: ['Look at your materials for 1 minute',       'Find the relevant file or notebook'] },
+      { text: `Read what you have so far on "${goal}" for 2 min`,    simplified: ['Skim the first section',                    'Open the document'] },
+      { text: `Write one sentence about your progress on "${goal}"`, simplified: ['Type one word that describes it',            'Think about it for 1 min'] },
+      { text: `Find one useful resource for "${goal}" online`,       simplified: ['Search for it and save one link',           'Google the topic name'] },
     ],
     medium: [
-      { text: 'Write a simple 3-section outline',              simplified: ['Write 3 bullet headings only',      'Write the topic at the top'] },
-      { text: 'Work on the first section for 20 min',          simplified: ['Write one paragraph in section 1',  'Write the first sentence'] },
-      { text: 'Find 3 good references and save the links',     simplified: ['Find 1 reference',                  'Google the main topic'] },
-      { text: 'Review and lightly edit what you have so far',  simplified: ['Read it once without editing',      'Open the document and scroll through'] },
+      { text: `Write a 3-step action plan for "${goal}"`,                   simplified: ['Write 3 bullet points only',                  'Write one thing you need to do'] },
+      { text: `Work on "${goal}" for 20 focused minutes`,                   simplified: ['Work on it for 10 minutes',                    'Set a timer and start for 5 min'] },
+      { text: `Find 3 good references for "${goal}" and save the links`,    simplified: ['Find 1 reference',                             'Google the main topic'] },
+      { text: `Review and edit your progress on "${goal}"`,                 simplified: ['Read what you have without editing',           'Open your notes and scroll through'] },
     ],
     hard: [
-      { text: 'Complete a full section from start to finish',       simplified: ['Write half a section',              'Write one paragraph'] },
-      { text: 'Do a focused 45-min deep work session',              simplified: ['Do a 25-min Pomodoro session',       'Work for 10 min uninterrupted'] },
-      { text: 'Write and refine two sections back to back',         simplified: ['Complete one section fully',         'Draft one section without editing'] },
-      { text: 'Review everything and prepare the final version',    simplified: ['Review the last two sections',       'Read through the whole thing once'] },
+      { text: `Complete one full milestone for "${goal}" from start to finish`,  simplified: ['Complete half a milestone',              'Make meaningful progress for 30 min'] },
+      { text: `Do a focused 45-min deep work session on "${goal}"`,              simplified: ['Do a 25-min Pomodoro session',            'Work for 10 min uninterrupted'] },
+      { text: `Make two major steps of progress on "${goal}" back to back`,      simplified: ['Complete one major step fully',           'Draft one step without stopping'] },
+      { text: `Review everything and prepare the next phase of "${goal}"`,       simplified: ['Review the last two sessions',           'Read through all your progress once'] },
     ],
   };
 }
