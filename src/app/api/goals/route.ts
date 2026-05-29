@@ -154,24 +154,26 @@ export async function POST(req: NextRequest) {
   const validPdf = pdfBase64 && pdfBase64.length > 100 ? pdfBase64 : null;
   console.log('Using PDF:', !!validPdf, '| Using text-only:', !validPdf);
 
+  // PDFs cannot be sent as image_url to OpenAI
+  // Instead, send the base64 as a text message explaining it's a PDF
   const messages = validPdf ? [
     {
       role: 'user',
-      content: [
-        {
-          type: 'text',
-          text: `You are a study planner. The user's goal: "${goal}". Read the attached PDF carefully and generate specific sequential study tasks based on its ACTUAL content — reference real topics, problems, or chapters from the document. Return ONLY valid JSON, no markdown:\n{"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[...]}`,
-        },
-        {
-          type: 'image_url',
-          image_url: { url: `data:application/pdf;base64,${validPdf}` },
-        },
-      ],
+      content: `You are a study planner. The user's goal: "${goal}".
+
+Here is the base64-encoded content of their study material PDF. Decode and read it to understand the topics, then generate specific sequential study tasks based on its actual content.
+
+PDF (base64): ${validPdf.slice(0, 8000)}
+
+Based on what you can read from this material, generate tasks that reference real topics from the document.
+
+Return ONLY valid JSON, no markdown:
+{"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[]}`,
     },
   ] : [
     {
       role: 'user',
-      content: `You are a planner. Break down this goal into specific sequential concrete steps: "${goal}". Each step starts with a verb. Return ONLY valid JSON, no markdown:\n{"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[...]}`,
+      content: `You are a planner. Break down this goal into specific sequential concrete steps: "${goal}". Each step starts with a verb. Return ONLY valid JSON, no markdown:\n{"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[]}`,
     },
   ];
 
