@@ -11,111 +11,130 @@ interface GoalResponse {
   hard:   TaskWithSimplified[];
 }
 
-const PROMPT = (goal: string, energy: string, freeHours: number): string =>
-  `You are a smart daily planner. Break down this goal into small, concrete daily actions a person can realistically do today.
+const PROMPT = (goal: string): string =>
+  `Break down this goal into sequential, concrete steps.
 
 Goal: "${goal}"
-Energy level: ${energy} (low/medium/high)
-Available time today: ${freeHours} hours
+
+Think about what someone would realistically do step by step to achieve this goal.
+
+Create 3 levels — each level has 3-5 tasks:
+
+EASY: The very first small steps. So simple that even with zero energy you could do them. These are the beginning actions.
+
+MEDIUM: Real progress steps. These move you meaningfully toward the goal. 30-45 minutes each.
+
+HARD: Significant steps. These require focus and energy. These are the heavy work.
 
 Rules:
-- Tasks must be SPECIFIC actions, not restatements of the goal
-- For physical goals (run, workout, exercise): give distance/time/reps for TODAY only
-  Example: goal is "Run 10km" → today's easy task = "Run 2km at easy pace"
-  Example: goal is "Run 10km" → today's medium task = "Run 5km with 2 min walk breaks"
-  Example: goal is "Run 10km" → today's hard task = "Run 7km continuous"
-- For study goals: give specific chapter/topic/problem count
-- For habit goals: give exact duration or count
-- EASY tasks must feel almost too simple
-- Each task should take 15–45 minutes maximum
+- Every task starts with a verb (Write, Record, Run, Read, Open, Create...)
+- Tasks must be SPECIFIC (not 'work on it', not 'make progress', not 'spend time on')
+- Tasks should follow a logical sequence — easy tasks happen before medium, medium before hard
+- Do NOT repeat the goal title in the task text
 
-Return ONLY this JSON, no markdown, no explanation:
+Return ONLY valid JSON, no markdown, no explanation:
 {
   "easy": [
-    {"text": "specific task", "simplified": ["even simpler", "simplest possible"]},
-    {"text": "specific task", "simplified": ["even simpler", "simplest possible"]},
-    {"text": "specific task", "simplified": ["even simpler", "simplest possible"]}
+    {"text": "specific first step", "simplified": ["even simpler version", "absolute minimum version"]},
+    {"text": "specific first step 2", "simplified": ["even simpler version", "absolute minimum version"]}
   ],
   "medium": [
-    {"text": "specific task", "simplified": ["even simpler", "simplest possible"]},
-    {"text": "specific task", "simplified": ["even simpler", "simplest possible"]},
-    {"text": "specific task", "simplified": ["even simpler", "simplest possible"]}
+    {"text": "specific progress step", "simplified": ["simpler version", "minimum version"]}
   ],
   "hard": [
-    {"text": "specific task", "simplified": ["even simpler", "simplest possible"]},
-    {"text": "specific task", "simplified": ["even simpler", "simplest possible"]},
-    {"text": "specific task", "simplified": ["even simpler", "simplest possible"]}
+    {"text": "specific hard step", "simplified": ["simpler version", "minimum version"]}
   ]
 }`;
 
 function fallback(goal: string): GoalResponse {
-  // Detect goal category by keywords so fallback tasks are at least plausible
   const g = goal.toLowerCase();
-  const isPhysical = /run|walk|jog|gym|workout|exercise|swim|bike|cycle|hike|lift|squat|push.?up|pull.?up|cardio|yoga|stretch/i.test(g);
-  const isStudy    = /study|exam|test|read|chapter|course|learn|homework|essay|paper|thesis|math|code|program/i.test(g);
 
-  if (isPhysical) {
+  // Physical / fitness goals
+  if (/run|jog|walk|gym|workout|exercise|swim|bike|cycle|hike|lift|squat|push.?up|pull.?up|cardio|yoga|stretch|fitness/i.test(g)) {
     return {
       easy: [
-        { text: 'Go for a 10-minute easy walk or light jog',                      simplified: ['Walk for 5 minutes outside',               'Put on your shoes and step outside'] },
-        { text: 'Do 10 minutes of stretching or warm-up exercises',               simplified: ['Do 5 minutes of light stretching',          'Stretch your legs for 2 minutes'] },
-        { text: 'Do 3 sets of 10 bodyweight squats',                              simplified: ['Do 1 set of 10 squats',                     'Do 5 squats'] },
+        { text: 'Put on your workout clothes and shoes',                          simplified: ['Lay out your workout clothes',              'Find your shoes'] },
+        { text: 'Do a 10-minute warm-up stretch routine',                         simplified: ['Stretch for 5 minutes',                    'Do 3 basic stretches'] },
+        { text: 'Walk briskly for 15 minutes',                                    simplified: ['Walk around the block once',               'Step outside for 5 minutes'] },
       ],
       medium: [
-        { text: 'Complete a 20-minute steady-pace cardio session',                simplified: ['Do 10 minutes of cardio',                   'Walk briskly for 10 minutes'] },
-        { text: 'Do a 25-minute full-body workout (squats, push-ups, lunges)',     simplified: ['Do 3 exercises for 10 min',                  'Do 2 sets of squats and push-ups'] },
-        { text: 'Run or jog for 20 minutes at a comfortable pace',                simplified: ['Run for 10 minutes then walk',               'Walk fast for 20 minutes'] },
+        { text: 'Run 3km at a comfortable, steady pace',                          simplified: ['Run 1.5km then walk back',                 'Jog for 15 minutes'] },
+        { text: 'Complete a 30-minute interval run (1 min fast / 2 min slow)',    simplified: ['Do 20 minutes of intervals',               'Alternate fast and slow for 10 min'] },
+        { text: 'Do a 25-minute full-body workout (squats, push-ups, lunges)',    simplified: ['Do 2 sets of each exercise',               'Do just squats and push-ups'] },
       ],
       hard: [
-        { text: 'Complete a 40-minute high-intensity workout session',            simplified: ['Do 25 minutes of moderate intensity',        'Do 15 minutes of high intensity'] },
-        { text: 'Run continuously for 30 minutes at a challenging pace',          simplified: ['Run 20 minutes then walk 5',                 'Run 15 minutes without stopping'] },
-        { text: 'Do a 45-minute progressive strength training session',           simplified: ['Do 30 minutes of strength training',         'Complete 3 compound exercises'] },
+        { text: 'Run 6km continuous at a challenging pace',                       simplified: ['Run 4km continuous',                      'Run 3km without stopping'] },
+        { text: 'Complete a 45-minute strength training session',                 simplified: ['Do 30 minutes of strength training',       'Complete 4 compound exercises'] },
+        { text: 'Finish a full workout including warm-up, main set, and cooldown',simplified: ['Do the main set only',                    'Do a 20-minute workout'] },
       ],
     };
   }
 
-  if (isStudy) {
+  // Video / content creation goals
+  if (/video|youtube|film|record|edit|podcast|reel|tiktok|content|post|upload|shoot/i.test(g)) {
     return {
       easy: [
-        { text: 'Read 5 pages of your study material',                            simplified: ['Read 2 pages',                              'Open the book and read 1 page'] },
-        { text: 'Review your notes from the last session for 10 minutes',         simplified: ['Skim your notes for 5 minutes',             'Open your notes'] },
-        { text: 'Write a 3-bullet summary of what you already know',              simplified: ['Write 1 bullet point',                      'Think of one thing you know about it'] },
+        { text: 'Open your notes app and write 3 video ideas',                    simplified: ['Write 1 video idea',                      'Think of a topic and say it out loud'] },
+        { text: 'Pick one idea and write a working title',                        simplified: ['Write a rough title',                     'Write one word that describes the topic'] },
+        { text: 'Search for 3 similar videos and note what works',               simplified: ['Watch 1 similar video',                   'Search for the topic online'] },
       ],
       medium: [
-        { text: 'Study one full topic or chapter section for 25 minutes',         simplified: ['Study for 15 minutes',                      'Read the section headings and summaries'] },
-        { text: 'Solve 5 practice problems or answer 10 review questions',        simplified: ['Solve 2 problems',                          'Read through 1 problem and attempt it'] },
-        { text: 'Write a 1-page summary of today\'s study topic',                simplified: ['Write 3 key points in your own words',       'Write the main idea in one sentence'] },
+        { text: 'Write a full video script (intro + 3 main points + outro)',      simplified: ['Write a bullet-point outline only',       'Write just the intro paragraph'] },
+        { text: 'Record a rough draft on your phone in one take',                 simplified: ['Record just the intro',                   'Record yourself speaking the outline'] },
+        { text: 'Create a simple thumbnail using Canva or your phone',           simplified: ['Find a background image for the thumbnail','Sketch the thumbnail on paper'] },
       ],
       hard: [
-        { text: 'Complete one full chapter with notes and a written summary',     simplified: ['Complete half a chapter with notes',         'Read the chapter without notes'] },
-        { text: 'Do a 45-minute timed practice test or problem set',             simplified: ['Do 25 minutes of practice problems',         'Do 10 minutes of timed problems'] },
-        { text: 'Write and review detailed notes covering 2 full topics',         simplified: ['Write notes for 1 topic',                    'Write rough notes for 1 topic'] },
+        { text: 'Record the final version with good lighting and clear audio',    simplified: ['Record in natural window light',          'Record one section at full quality'] },
+        { text: 'Edit the full video: cuts, captions, music, transitions',        simplified: ['Cut out mistakes and silences only',      'Make 3 edits to improve the video'] },
+        { text: 'Upload to YouTube with title, description, tags, and thumbnail', simplified: ['Upload as unlisted and fill in the title', 'Upload the file and save as draft'] },
       ],
     };
   }
 
-  // Generic fallback
+  // Study / learning goals
+  if (/study|exam|test|learn|read|chapter|course|homework|essay|paper|thesis|math|code|program|degree|class|lecture/i.test(g)) {
+    return {
+      easy: [
+        { text: 'Open your study material and read the first page',               simplified: ['Open the book or file',                   'Find where you left off'] },
+        { text: 'Write down 3 things you already know about this topic',          simplified: ['Write 1 thing you know',                  'Think about the topic for 2 minutes'] },
+        { text: 'Review your notes from the last session for 10 minutes',         simplified: ['Skim your notes for 5 minutes',           'Open your notes and read the headings'] },
+      ],
+      medium: [
+        { text: 'Read and take notes on one full chapter section',                simplified: ['Read the section without notes',          'Read just the first half'] },
+        { text: 'Solve 5 practice problems or complete 10 review questions',      simplified: ['Solve 2 problems',                        'Attempt 1 problem fully'] },
+        { text: 'Write a 1-page summary of the topic in your own words',         simplified: ['Write 3 key points',                      'Write the main idea in one sentence'] },
+      ],
+      hard: [
+        { text: 'Complete a full chapter with detailed notes and a summary',      simplified: ['Complete half the chapter with notes',    'Read the chapter once through'] },
+        { text: 'Do a 45-minute timed practice test without looking at notes',    simplified: ['Do 25 minutes of timed practice',         'Answer 10 questions from memory'] },
+        { text: 'Write a complete outline or essay draft covering 2 topics',      simplified: ['Write an outline for 1 topic',            'Write bullet points for the main ideas'] },
+      ],
+    };
+  }
+
+  // Generic sequential fallback — no time-box filler, no goal restatements
   return {
     easy: [
-      { text: `Spend 10 minutes planning your approach to "${goal}"`,             simplified: ['Think about one first step for 5 min',      'Write down the goal on paper'] },
-      { text: `Do one small concrete action toward "${goal}" right now`,          simplified: ['Find one resource related to the goal',      'Search online for how to start'] },
-      { text: `Set up your workspace or tools needed for "${goal}"`,              simplified: ['Gather your materials',                      'Clear your desk or open the app'] },
+      { text: `Open a blank note and write down everything you know about this goal`,   simplified: ['Write 3 bullet points about the goal',      'Write the first step that comes to mind'] },
+      { text: 'Search online for one concrete example of someone who achieved this',    simplified: ['Search for the topic online',               'Watch a 5-minute intro video about it'] },
+      { text: 'List the 3 most important first steps you need to take',                 simplified: ['Write 1 first step',                        'Think about what you need to start'] },
     ],
     medium: [
-      { text: `Work directly on "${goal}" for 20 uninterrupted minutes`,          simplified: ['Work on it for 10 minutes',                  'Set a 5-min timer and start'] },
-      { text: `Complete one clear, defined step of "${goal}"`,                    simplified: ['Start the step without finishing it',        'Write down the steps involved'] },
-      { text: `Review your progress on "${goal}" and plan the next action`,       simplified: ['Write what you have done so far',            'Look at your notes for 5 min'] },
+      { text: 'Complete the first concrete action from your step list',                 simplified: ['Start the action, even partially',          'Prepare everything needed for the action'] },
+      { text: 'Research and gather the specific tools or materials you need',           simplified: ['Find 1 tool or resource you need',          'Write down what tools you would need'] },
+      { text: 'Finish the second step from your plan and document the result',          simplified: ['Start the second step',                     'Review and refine the first step'] },
     ],
     hard: [
-      { text: `Work on "${goal}" for a focused 40-minute deep session`,           simplified: ['Do a 25-minute Pomodoro session',            'Work for 15 minutes without stopping'] },
-      { text: `Complete two consecutive work blocks on "${goal}"`,                simplified: ['Complete one work block',                    'Start one block and work for 20 min'] },
-      { text: `Reach a clear checkpoint on "${goal}" you can measure`,            simplified: ['Make any meaningful measurable progress',    'Write down what your checkpoint would be'] },
+      { text: 'Complete the hardest or most-avoided step on your list',                 simplified: ['Start the hard step and do 50%',            'Break the hard step into 3 smaller parts'] },
+      { text: 'Finish a complete, shareable or usable version of your work',            simplified: ['Finish a rough draft version',              'Complete two-thirds of the final version'] },
+      { text: 'Review your output, fix the biggest issues, and prepare the next phase', simplified: ['Review only and write a fix list',          'Fix the top 2 issues you notice'] },
     ],
   };
 }
 
 export async function POST(req: NextRequest) {
-  const { goal, energy = 'medium', freeHours = 4 } = await req.json();
+  // energy and freeHours kept in signature for backward compat but no longer used in prompt
+  const { goal } = await req.json();
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json(fallback(goal));
@@ -132,7 +151,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2048,
-        messages: [{ role: 'user', content: PROMPT(goal, energy, freeHours) }],
+        messages: [{ role: 'user', content: PROMPT(goal) }],
       }),
     });
 
