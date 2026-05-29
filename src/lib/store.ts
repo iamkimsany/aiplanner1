@@ -1,4 +1,4 @@
-import { AppState, Goal, Task, EnergyLevel, ScheduleBlock, TodayTask, Session } from './types';
+import { AppState, Goal, Task, EnergyLevel, ScheduleBlock, TodayTask, Session, CompletedTaskEntry } from './types';
 
 const KEY = 'juststart_v2';
 
@@ -9,16 +9,17 @@ export const DEFAULT_SCHEDULE: ScheduleBlock[] = [
 ];
 
 const defaultState: AppState = {
-  goals:         [],
-  schedule:      DEFAULT_SCHEDULE,
-  sessions:      [],
-  focusSessions: [],
-  todayTasks:    [],
-  currentEnergy: null,
-  lastResult:    null,
-  aiSummary:     null,
-  activeFocus:   null,
-  lastFocusDone: null,
+  goals:                [],
+  schedule:             DEFAULT_SCHEDULE,
+  sessions:             [],
+  focusSessions:        [],
+  todayTasks:           [],
+  currentEnergy:        null,
+  lastResult:           null,
+  aiSummary:            null,
+  completedTaskHistory: {},
+  activeFocus:          null,
+  lastFocusDone:        null,
 };
 
 export function loadState(): AppState {
@@ -193,4 +194,28 @@ export function balanceTip(b: { study: number; health: number; hobby: number; re
 
 export function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+/**
+ * Append one completed task to the persistent history under today's date.
+ * Never overwrites existing entries — always accumulates.
+ */
+export function appendCompletedTask(
+  state: AppState,
+  goalTitle: string,
+  taskText: string,
+): AppState {
+  const now   = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const hh    = String(now.getHours()).padStart(2, '0');
+  const mm    = String(now.getMinutes()).padStart(2, '0');
+  const entry: CompletedTaskEntry = { goalTitle, taskText, completedAt: `${hh}:${mm}` };
+  const existing = state.completedTaskHistory?.[today] ?? [];
+  return {
+    ...state,
+    completedTaskHistory: {
+      ...state.completedTaskHistory,
+      [today]: [...existing, entry],
+    },
+  };
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import NavigationDots from '@/components/NavigationDots';
 import BalanceCard from '@/components/BalanceCard';
 import { loadState, calcBalance, balanceTip } from '@/lib/store';
-import { Session } from '@/lib/types';
+import { Session, CompletedTaskEntry } from '@/lib/types';
 
 // ─── Balance config ───────────────────────────────────────────────────────────
 
@@ -35,23 +35,25 @@ function toDateStr(d: Date): string {
 
 const DAY_ABR = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const GOAL_DOTS = [
-  '#7F77DD', // purple — deadline goals
-  '#3B6D11', // green  — habit goals
-  '#0F6E56', // teal
-  '#993C1D', // coral
-];
+// Stable color per goal title — hash title → palette index
+const DOT_PALETTE = ['#7F77DD', '#3B6D11', '#0F6E56', '#993C1D', '#1E6DA8', '#7A3D99'];
+
+function goalTitleColor(title: string): string {
+  let h = 0;
+  for (let i = 0; i < title.length; i++) h = ((h * 31) + title.charCodeAt(i)) >>> 0;
+  return DOT_PALETTE[h % DOT_PALETTE.length];
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OverviewPage() {
   const router = useRouter();
-  const [balance,       setBalance]       = useState({ study: 0, health: 0, hobby: 0, rest: 0 });
-  const [tip,           setTip]           = useState('');
-  const [sessions,      setSessions]      = useState<Session[]>([]);
-  const [goals,         setGoals]         = useState<{ id: string; title: string; type: string }[]>([]);
-  const [selectedDate,  setSelectedDate]  = useState<string | null>(null);
-  const [today,         setToday]         = useState(new Date());
+  const [balance,      setBalance]      = useState({ study: 0, health: 0, hobby: 0, rest: 0 });
+  const [tip,          setTip]          = useState('');
+  const [sessions,     setSessions]     = useState<Session[]>([]);
+  const [taskHistory,  setTaskHistory]  = useState<Record<string, CompletedTaskEntry[]>>({});
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [today,        setToday]        = useState(new Date());
 
   useEffect(() => {
     const state = loadState();
@@ -59,29 +61,18 @@ export default function OverviewPage() {
     setBalance(bal);
     setTip(balanceTip(bal));
     setSessions(state.sessions);
-    setGoals(state.goals.map((g) => ({ id: g.id, title: g.title, type: g.type })));
+    setTaskHistory(state.completedTaskHistory ?? {});
     setToday(new Date());
   }, []);
 
   const days     = getWeekDays(today);
   const todayStr = toDateStr(today);
 
-  // Build dateStr → goalId[] map (from sessions)
-  const activityMap = new Map<string, string[]>();
-  for (const s of sessions) {
-    const d = s.createdAt.slice(0, 10);
-    if (!activityMap.has(d)) activityMap.set(d, []);
-    const existing = activityMap.get(d)!;
-    if (!existing.includes(s.goalId)) existing.push(s.goalId);
-  }
-
-  // Goal index map for dot color
-  const goalIndexMap = new Map(goals.map((g, i) => [g.id, i]));
-
   // Week range label
-  const weekStart = days[0];
-  const weekEnd   = days[6];
-  const weekLabel = `${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  const weekLabel = `${days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
+  // Suppress unused-variable warning — sessions is kept for future balance recalc
+  void sessions;
 
   return (
     <div className="screen flex-1 flex flex-col">
@@ -135,11 +126,11 @@ export default function OverviewPage() {
         <div className="space-y-3">
           <div className="grid grid-cols-7 gap-1">
             {days.map((day, i) => {
-              const dateStr     = toDateStr(day);
-              const isToday     = dateStr === todayStr;
-              const isPast      = dateStr < todayStr;
-              const goalIds     = activityMap.get(dateStr) ?? [];
-              const isSelected  = selectedDate === dateStr;
+              const dateStr    = toDateStr(day);
+              const isToday    = dateStr === todayStr;
+              const isPast     = dateStr < todayStr;
+              const entries    = taskHistory[dateStr] ?? [];
+              const isSelected = selectedDate === dateStr;
 
               return (
                 <button
@@ -151,12 +142,7 @@ export default function OverviewPage() {
                     border:     isSelected ? '1px solid var(--color-purple-mid)' : '1px solid transparent',
                   }}
                 >
-                  <p
-                    style={{
-                      fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.3px',
-                      color: 'var(--color-text-tertiary)',
-                    }}
-                  >
+                  <p style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.3px', color: 'var(--color-text-tertiary)' }}>
                     {DAY_ABR[i]}
                   </p>
                   <div
@@ -166,29 +152,25 @@ export default function OverviewPage() {
                       background: isToday ? 'var(--color-purple)' : 'transparent',
                     }}
                   >
-                    <p
-                      style={{
-                        fontSize:   '13px',
-                        fontWeight: isToday ? 500 : 400,
-                        color:      isToday ? '#fff' : isPast ? 'var(--color-text-tertiary)' : 'var(--color-text)',
-                      }}
-                    >
+                    <p style={{
+                      fontSize:   '13px',
+                      fontWeight: isToday ? 500 : 400,
+                      color:      isToday ? '#fff' : isPast ? 'var(--color-text-tertiary)' : 'var(--color-text)',
+                    }}>
                       {day.getDate()}
                     </p>
                   </div>
-                  {/* Activity dots */}
+                  {/* One dot per completed task, max 4 visible */}
                   <div className="flex gap-0.5 flex-wrap justify-center" style={{ minHeight: '6px' }}>
-                    {goalIds.slice(0, 3).map((gid) => {
-                      const idx = goalIndexMap.get(gid) ?? 0;
-                      const goal = goals.find((g) => g.id === gid);
-                      const color = goal?.type === 'habit' ? '#3B6D11' : GOAL_DOTS[idx % GOAL_DOTS.length];
-                      return (
-                        <div
-                          key={gid}
-                          style={{ width: '4px', height: '4px', borderRadius: '50%', background: color }}
-                        />
-                      );
-                    })}
+                    {entries.slice(0, 4).map((entry, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          width: '4px', height: '4px', borderRadius: '50%',
+                          background: goalTitleColor(entry.goalTitle),
+                        }}
+                      />
+                    ))}
                   </div>
                 </button>
               );
@@ -197,50 +179,57 @@ export default function OverviewPage() {
 
           {/* Day detail panel */}
           {selectedDate && (() => {
-            const dayGoalIds = activityMap.get(selectedDate) ?? [];
-            const daySessions = sessions.filter((s) => s.createdAt.slice(0, 10) === selectedDate);
+            const entries = taskHistory[selectedDate] ?? [];
+            const label   = new Date(selectedDate + 'T12:00:00')
+              .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
             return (
               <div
-                className="rounded-xl p-4 space-y-3"
+                className="rounded-xl p-4 space-y-2"
                 style={{ background: 'var(--color-bg-secondary)' }}
               >
-                <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text)' }}>
-                  {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text)', marginBottom: '4px' }}>
+                  {label}
                 </p>
-                {dayGoalIds.length === 0 ? (
-                  <p style={{ fontSize: '12px', color: 'var(--color-text-tertiary)' }}>No activity.</p>
+                {entries.length === 0 ? (
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-tertiary)' }}>No tasks completed.</p>
                 ) : (
-                  dayGoalIds.map((gid) => {
-                    const g   = goals.find((g) => g.id === gid);
-                    const idx = goalIndexMap.get(gid) ?? 0;
-                    const color = g?.type === 'habit' ? '#3B6D11' : GOAL_DOTS[idx % GOAL_DOTS.length];
-                    const count = daySessions.filter((s) => s.goalId === gid && s.result === 'done').length;
-                    return (
-                      <div key={gid} className="flex items-center gap-2">
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
-                        <p style={{ fontSize: '12px', color: 'var(--color-text)' }}>
-                          {g?.title} — {count} task{count !== 1 ? 's' : ''} done
-                        </p>
-                      </div>
-                    );
-                  })
+                  entries.map((e, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span style={{ color: goalTitleColor(e.goalTitle), fontSize: '12px', flexShrink: 0, marginTop: '1px' }}>✓</span>
+                      <p style={{ fontSize: '12px', color: 'var(--color-text)', lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 500 }}>{e.goalTitle}</span>
+                        {' — '}
+                        <span style={{ color: 'var(--color-text-secondary)' }}>&ldquo;{e.taskText}&rdquo;</span>
+                        <span style={{ color: 'var(--color-text-tertiary)' }}> · {e.completedAt}</span>
+                      </p>
+                    </div>
+                  ))
                 )}
               </div>
             );
           })()}
 
-          {/* Legend */}
-          <div className="flex gap-4 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#7F77DD' }} />
-              <p style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>Deadline goals</p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3B6D11' }} />
-              <p style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>Habits</p>
-            </div>
-          </div>
+          {/* Legend — unique goal titles seen in this week */}
+          {(() => {
+            const seen = new Map<string, string>();
+            for (const day of days) {
+              for (const e of (taskHistory[toDateStr(day)] ?? [])) {
+                if (!seen.has(e.goalTitle)) seen.set(e.goalTitle, goalTitleColor(e.goalTitle));
+              }
+            }
+            if (seen.size === 0) return null;
+            return (
+              <div className="flex gap-3 flex-wrap">
+                {Array.from(seen.entries()).map(([title, color]) => (
+                  <div key={title} className="flex items-center gap-1.5">
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: color }} />
+                    <p style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>{title}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -251,7 +240,7 @@ export default function OverviewPage() {
           className="w-full rounded-[10px] font-medium"
           style={{ padding: '13px', fontSize: '14px', background: 'var(--color-purple)', color: '#fff' }}
         >
-          Start again →
+          New Task →
         </button>
         <NavigationDots total={4} current={3} />
       </div>

@@ -65,6 +65,13 @@ export interface TodayTask {
   simplifyLevel: number;
 }
 
+/** One entry in the persistent completed-task history. */
+export interface CompletedTaskEntry {
+  goalTitle: string;
+  taskText: string;
+  completedAt: string; // "HH:MM"
+}
+
 export interface AppState {
   goals: Goal[];
   schedule: ScheduleBlock[];
@@ -74,6 +81,11 @@ export interface AppState {
   currentEnergy: EnergyLevel | null;
   lastResult: SessionResult | null;
   aiSummary: string | null;
+  /**
+   * Persistent completed-task log keyed by ISO date ("2026-05-28").
+   * Never cleared — accumulates across all sessions forever.
+   */
+  completedTaskHistory: Record<string, CompletedTaskEntry[]>;
   /** Active focus-flow context (persisted so timer survives re-render) */
   activeFocus: {
     taskId: string;

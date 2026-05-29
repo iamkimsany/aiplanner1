@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   loadState, saveState, genId, getAllTasksInGoal,
-  updateGoalProgress, markTodayTaskDone,
+  updateGoalProgress, markTodayTaskDone, appendCompletedTask,
 } from '@/lib/store';
 import { Goal, Task } from '@/lib/types';
 
@@ -102,25 +102,30 @@ export default function FocusTimerPage() {
       createdAt: new Date().toISOString(),
     };
 
-    const updatedGoals     = updateGoalProgress(state.goals, goal.id, task.id);
+    const updatedGoals      = updateGoalProgress(state.goals, goal.id, task.id);
     const updatedTodayTasks = markTodayTaskDone(state.todayTasks, task.id);
 
-    saveState({
-      ...state,
-      goals:         updatedGoals,
-      todayTasks:    updatedTodayTasks,
-      sessions:      [...state.sessions, session],
-      focusSessions: [...state.focusSessions, focusSession],
-      lastResult:    'done',
-      activeFocus:   null,
-      lastFocusDone: {
-        durationMinutes: elapsedMins,
-        distractions:    distractionsRef.current,
-        taskText:        task.text,
-        goalTitle:       goal.title,
+    const nextState = appendCompletedTask(
+      {
+        ...state,
+        goals:         updatedGoals,
+        todayTasks:    updatedTodayTasks,
+        sessions:      [...state.sessions, session],
+        focusSessions: [...state.focusSessions, focusSession],
+        lastResult:    'done',
+        activeFocus:   null,
+        lastFocusDone: {
+          durationMinutes: elapsedMins,
+          distractions:    distractionsRef.current,
+          taskText:        task.text,
+          goalTitle:       goal.title,
+        },
       },
-    });
+      goal.title,
+      task.text,
+    );
 
+    saveState(nextState);
     router.push('/focus/done');
   }
 
