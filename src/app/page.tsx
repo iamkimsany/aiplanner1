@@ -177,6 +177,25 @@ export default function GoalPage() {
       }, 0)
     );
 
+    // Convert a File to a raw base64 string (strips the data-URL prefix)
+    const toBase64 = (file: File): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+    // Pre-convert ALL goal PDFs to base64 in parallel before the API loop starts
+    const pdfBase64Map: Record<string, string | null> = {};
+    await Promise.all(
+      goals.map(async (goal) => {
+        const pdfFile = goal.pdfName ? (pdfFilesRef.current[goal.id] ?? null) : null;
+        pdfBase64Map[goal.id] = pdfFile ? await toBase64(pdfFile) : null;
+        console.log(`Pre-convert "${goal.title}" — file found: ${!!pdfFile}, base64 length: ${pdfBase64Map[goal.id]?.length ?? 0}`);
+      })
+    );
+
     try {
       const updatedGoals: Goal[] = [];
 
@@ -188,18 +207,8 @@ export default function GoalPage() {
           continue;
         }
 
-        // Convert the in-memory File to base64 right before the API call
-        const toBase64 = (file: File): Promise<string> =>
-          new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload  = () => resolve((reader.result as string).split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-
-        const pdfFile   = goal.pdfName ? (pdfFilesRef.current[goal.id] ?? null) : null;
-        const pdfBase64 = pdfFile ? await toBase64(pdfFile) : null;
-        console.log(`Goal "${goal.title}" — PDF attached: ${!!pdfBase64}, base64 length: ${pdfBase64?.length ?? 0}`);
+        const pdfBase64 = pdfBase64Map[goal.id] ?? null;
+        console.log(`Sending to API — "${goal.title}" PDF: ${!!pdfBase64}, size: ${pdfBase64?.length ?? 0}`);
 
         const res  = await fetch('/api/goals', {
           method: 'POST',
