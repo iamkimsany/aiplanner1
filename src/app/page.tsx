@@ -148,17 +148,16 @@ export default function GoalPage() {
     );
 
     try {
-      let lastSummary = '';
       const updatedGoals: Goal[] = [];
 
       for (const goal of goals) {
         const res  = await fetch('/api/goals', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ goal: goal.title, freeHours }),
+          // energy not chosen yet — default to 'medium' so the prompt is still useful
+          body: JSON.stringify({ goal: goal.title, energy: 'medium', freeHours }),
         });
         const data = await res.json();
-        lastSummary = data.summary ?? lastSummary;
 
         const makeTasks = (
           items: { text: string; simplified: [string, string] }[],
@@ -201,7 +200,7 @@ export default function GoalPage() {
         lastResult:    null,
         activeFocus:   null,
         lastFocusDone: null,
-        aiSummary:     lastSummary,
+        aiSummary:     null,
       });
       router.push('/energy');
     } catch {
