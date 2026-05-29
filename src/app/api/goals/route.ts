@@ -137,9 +137,11 @@ export async function POST(req: NextRequest) {
   const { goal, pdfBase64 } = body;
 
   console.log('PDF received:', !!pdfBase64, 'length:', pdfBase64?.length ?? 0);
-  console.log('OPENAI_API_KEY present:', !!process.env.OPENAI_API_KEY);
 
-  if (!process.env.OPENAI_API_KEY) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  console.log('OPENAI_API_KEY present:', !!apiKey);
+
+  if (!apiKey) {
     console.log('No API key — returning fallback');
     return Response.json(fallback(goal));
   }
@@ -148,45 +150,52 @@ export async function POST(req: NextRequest) {
   const validPdf = pdfBase64 && pdfBase64.length > 100 ? pdfBase64 : null;
   console.log('Using PDF:', !!validPdf, '| Using text-only:', !validPdf);
 
+  const messages = validPdf ? [
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: `You are a study planner. The user's goal: "${goal}". Read the attached PDF carefully and generate specific sequential study tasks based on its ACTUAL content — reference real topics, problems, or chapters from the document. Return ONLY valid JSON, no markdown:\n{"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[...]}`,
+        },
+        {
+          type: 'image_url',
+          image_url: { url: `data:application/pdf;base64,${validPdf}` },
+        },
+      ],
+    },
+  ] : [
+    {
+      role: 'user',
+      content: `You are a planner. Break down this goal into specific sequential concrete steps: "${goal}". Each step starts with a verb. Return ONLY valid JSON, no markdown:\n{"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[...]}`,
+    },
+  ];
+
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o',
         max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: validPdf ? [
-            {
-              type: 'text',
-              text: `You are a study planner. Goal: "${goal}". Read the attached PDF and generate specific sequential tasks based on its actual content. Return ONLY valid JSON no markdown: {"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[...]}`,
-            },
-            {
-              type: 'image_url',
-              image_url: { url: `data:application/pdf;base64,${validPdf}` },
-            },
-          ] : [
-            {
-              type: 'text',
-              text: `You are a planner. Break down this goal into specific sequential steps: "${goal}". Return ONLY valid JSON no markdown: {"easy":[{"text":"...","simplified":["...","..."]}],"medium":[...],"hard":[...]}`,
-            },
-          ],
-        }],
+        messages,
       }),
     });
 
-    console.log('OpenAI response status:', response.status);
+    console.log('OpenAI status:', response.status);
     const data = await response.json();
     console.log('OpenAI response:', JSON.stringify(data).slice(0, 300));
 
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) throw new Error('No content from OpenAI');
+    if (!response.ok) throw new Error(data.error?.message || 'OpenAI error');
 
-    const parsed: GoalResponse = JSON.parse(content.replace(/```json|```/g, '').trim());
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('No content');
+
+    const cleaned = content.replace(/```json|```/g, '').trim();
+    const parsed: GoalResponse = JSON.parse(cleaned);
     return Response.json(parsed);
   } catch {
     return Response.json(fallback(goal));
