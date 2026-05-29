@@ -133,6 +133,10 @@ function fallback(goal: string): GoalResponse {
 }
 
 export async function POST(req: NextRequest) {
+  console.log("=== API GOALS CALLED ===")
+  console.log("OPENAI_API_KEY present:", !!process.env.OPENAI_API_KEY)
+  console.log("OPENAI_API_KEY first 8 chars:", process.env.OPENAI_API_KEY?.slice(0, 8))
+
   const body = await req.json();
   const { goal, pdfBase64 } = body;
 

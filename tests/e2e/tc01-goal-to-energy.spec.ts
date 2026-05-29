@@ -11,10 +11,18 @@ import { test, expect } from '@playwright/test';
 import { LS_KEY, MOCK_GOAL } from './fixtures';
 
 // ─── Mock API response ────────────────────────────────────────────────────────
-
+// /api/goals returns per-goal task data (one call per goal in handleBuildPlan)
+// Shape: { easy: [{text, simplified}], medium: [...], hard: [...] }
 const API_RESPONSE = {
-  goals: [MOCK_GOAL],
-  aiSummary: "You have 3 hours free today. Let's make it count.",
+  easy: [
+    { text: 'Review 10 vocabulary flashcards', simplified: ['Review 5 flashcards', 'Review 3 cards'] },
+  ],
+  medium: [
+    { text: 'Complete one listening exercise on Kwiziq', simplified: ['Listen to 3 min audio', 'Listen for 1 min'] },
+  ],
+  hard: [
+    { text: 'Write a 200-word paragraph about weekend plans', simplified: ['Write 3 sentences', 'Write 1 sentence'] },
+  ],
 };
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
